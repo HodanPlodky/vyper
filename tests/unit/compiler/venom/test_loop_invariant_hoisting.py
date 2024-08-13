@@ -37,7 +37,7 @@ def _simple_body(fn, loop_id, depth):
     assert isinstance(fn, IRFunction)
     bb = fn.get_basic_block()
     add_var = IRVariable(f"add_var{loop_id}{depth}")
-    bb.append_instruction("add", 1, 2, ret=add_var)
+    bb.append_instruction("add", loop_id, depth, ret=add_var)
 
 
 def _hoistable_body(fn, loop_id, depth):
@@ -45,7 +45,7 @@ def _hoistable_body(fn, loop_id, depth):
     bb = fn.get_basic_block()
     store_var = IRVariable(f"store_var{loop_id}{depth}")
     add_var_a = IRVariable(f"add_var_a{loop_id}{depth}")
-    bb.append_instruction("store", 1, ret=store_var)
+    bb.append_instruction("store", loop_id * depth + depth, ret=store_var)
     bb.append_instruction("add", 1, store_var, ret=add_var_a)
     add_var_b = IRVariable(f"add_var_b{loop_id}{depth}")
     bb.append_instruction("add", store_var, add_var_a, ret=add_var_b)
