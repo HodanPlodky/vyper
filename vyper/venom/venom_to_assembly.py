@@ -361,11 +361,15 @@ class VenomCompiler:
             op = ops[pos]
             if op in next_liveness and op not in emitted_ops:
                 self.dup_op(assembly, stack, op)
-                push_count -= 1  # ignore typing
+                push_count -= 1
             elif op in emitted_ops:
                 self.dup_op(assembly, stack, op)
-                push_count -= 1  # ignore typing
+                push_count -= 1
             else:
+                depth = -(len(ops) - pos - 1) + push_count
+                if stack.get_depth(op) == depth:
+                    emitted_ops.add(op)
+                    return push_count
                 self.swap_op(assembly, stack, op)
 
             do_swap(pos, push_count)
