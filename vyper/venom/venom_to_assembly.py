@@ -321,7 +321,9 @@ class VenomCompiler:
         stack: StackModel,
         next_liveness: OrderedSet[IRVariable],
     ):
-        ops = list(reversed(ops))
+        if len(ops) == 0:
+            return
+        #ops = list(reversed(ops))
         val_positions: list[int] = [
             pos for (pos, elem) in enumerate(ops) if isinstance(elem, IRLiteral | IRLabel)
         ]
@@ -351,7 +353,7 @@ class VenomCompiler:
         def do_swap(pos: int, push_count: int):
             depth = -(len(ops) - pos - 1) + push_count
             if depth != 0:
-                stack.swap(depth)
+                self.swap(assembly, stack, depth)
             op = ops[pos]
             emitted_ops.add(op)
 
@@ -408,6 +410,7 @@ class VenomCompiler:
             push_count = emit_var(pos, push_count)
 
         assert push_count == 0, f"push count : {push_count}"
+        assert stack._stack[-len(ops) :] == ops, (stack, ops)
         #print("\t", stack)
         #if inst.output is not None and inst.output.name == "%7":
             #assert False
@@ -535,6 +538,7 @@ class VenomCompiler:
 
         # Step 2: Emit instruction's input operands
         self._emit_input_operands(assembly, inst, operands, stack, next_liveness)
+        #print(inst, stack)
 
         # Step 3: Reorder stack before join points
         if opcode == "jmp":
@@ -565,7 +569,7 @@ class VenomCompiler:
 
         # final step to get the inputs to this instruction ordered
         # correctly on the stack
-        # self._stack_reorder(assembly, stack, operands)
+        #self._stack_reorder(assembly, stack, operands)
 
         # some instructions (i.e. invoke) need to do stack manipulations
         # with the stack model containing the return value(s), so we fiddle
