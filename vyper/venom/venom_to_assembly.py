@@ -261,7 +261,6 @@ class VenomCompiler:
 
         return cost
 
-    """
     def _emit_input_operands(
         self,
         assembly: list,
@@ -269,73 +268,14 @@ class VenomCompiler:
         ops: list[IROperand],
         stack: StackModel,
         next_liveness: OrderedSet[IRVariable],
-    ) -> None:
-        if inst.opcode == "jmp":
-            print(inst, ops)
-        # PRE: we already have all the items on the stack that have
-        # been scheduled to be killed. now it's just a matter of emitting
-        # SWAPs, DUPs and PUSHes until we match the `ops` argument
-
-        # dumb heuristic: if the top of stack is not wanted here, swap
-        # it with something that is wanted
-        if ops and stack.height > 0 and stack.peek(0) not in ops:
-            for op in ops:
-                if isinstance(op, IRVariable) and op not in next_liveness:
-                    self.swap_op(assembly, stack, op)
-                    break
-
-        emitted_ops = OrderedSet[IROperand]()
-        for op in ops:
-            if isinstance(op, IRLabel):
-                # invoke emits the actual instruction itself so we don't need to emit it here
-                # but we need to add it to the stack map
-                if inst.opcode != "invoke":
-                    assembly.append(f"_sym_{op.value}")
-                stack.push(op)
-                continue
-
-            if isinstance(op, IRLiteral):
-                if op.value < -(2**255):
-                    raise Exception(f"Value too low: {op.value}")
-                elif op.value >= 2**256:
-                    raise Exception(f"Value too high: {op.value}")
-                assembly.extend(PUSH(op.value % 2**256))
-                stack.push(op)
-                continue
-
-            if op in next_liveness and op not in emitted_ops:
-                self.dup_op(assembly, stack, op)
-
-            if op in emitted_ops:
-                self.dup_op(assembly, stack, op)
-
-            emitted_ops.add(op)
-
-    """
-    
-    def _emit_input_operands(
-        self,
-        assembly: list,
-        inst: IRInstruction,
-        ops: list[IROperand],
-        stack: StackModel,
-        next_liveness: OrderedSet[IRVariable],
-        dry_run: bool = False
+        dry_run: bool = False,
     ):
         if len(ops) == 0:
             return
-        
+
         if dry_run:
             assert len(assembly) == 0
             stack = stack.copy()
-
-        """
-        swaped_ops = False
-        if inst.opcode in COMMUTATIVE_INSTRUCTIONS:
-            if stack._stack[-2:] == list(reversed(ops)):
-                ops[0], ops[1] = ops[1], ops[0]
-                swaped_ops = True
-        """
 
         val_positions: list[int] = [
             pos for (pos, elem) in enumerate(ops) if isinstance(elem, IRLiteral | IRLabel)
@@ -347,7 +287,7 @@ class VenomCompiler:
         push_count: int = len(val_positions)
         counts = Counter(map(lambda x: ops[x], var_positions))
         for var, count in counts.items():
-            if var in next_liveness: 
+            if var in next_liveness:
                 push_count += count
             else:
                 push_count += count - 1
@@ -402,8 +342,8 @@ class VenomCompiler:
                 assembly.extend(PUSH(op.value % 2**256))
                 stack.push(op)
             else:
-                assert False, "Wrong op"
-            push_count -= 1  # ignore typing
+                raise AssertionError("Wrong op")
+            push_count -= 1
             do_swap(pos, push_count)
             return push_count
 
@@ -425,11 +365,6 @@ class VenomCompiler:
 
         assert push_count == 0, f"push count : {push_count}"
         assert stack._stack[-len(ops) :] == ops, (stack, ops)
-        #print("\t", stack)
-        #if inst.output is not None and inst.output.name == "%7":
-            #assert False
-
-
 
     def _generate_evm_for_basicblock_r(
         self, asm: list, basicblock: IRBasicBlock, stack: StackModel
@@ -490,7 +425,7 @@ class VenomCompiler:
     def _generate_evm_for_instruction(
         self, inst: IRInstruction, stack: StackModel, next_liveness: OrderedSet
     ) -> list[str]:
-        #print(inst)
+        # print(inst)
         assembly: list[str | int] = []
         opcode = inst.opcode
 
@@ -552,16 +487,15 @@ class VenomCompiler:
 
         # Step 2: Emit instruction's input operands
         if opcode in COMMUTATIVE_INSTRUCTIONS:
-            normal = []
+            normal: list[str] = []
             self._emit_input_operands(normal, inst, operands, stack, next_liveness, dry_run=True)
             swaped_ops = [operands[-1], operands[-2]]
-            swaped = []
+            swaped: list[str] = []
             self._emit_input_operands(swaped, inst, swaped_ops, stack, next_liveness, dry_run=True)
             if len(normal) > len(swaped):
                 operands[-1], operands[-2] = operands[-2], operands[-1]
 
         self._emit_input_operands(assembly, inst, operands, stack, next_liveness)
-        #print(inst, stack)
 
         # Step 3: Reorder stack before join points
         if opcode == "jmp":
@@ -581,18 +515,9 @@ class VenomCompiler:
             # the same variable, however, before a jump that is not possible
             self._stack_reorder(assembly, stack, list(target_stack))
 
-        """
-        if opcode in COMMUTATIVE_INSTRUCTIONS:
-            cost_no_swap = self._stack_reorder([], stack, operands, dry_run=True)
-            operands[-1], operands[-2] = operands[-2], operands[-1]
-            cost_with_swap = self._stack_reorder([], stack, operands, dry_run=True)
-            if cost_with_swap > cost_no_swap:
-                operands[-1], operands[-2] = operands[-2], operands[-1]
-        """
-
         # final step to get the inputs to this instruction ordered
         # correctly on the stack
-        #self._stack_reorder(assembly, stack, operands)
+        # self._stack_reorder(assembly, stack, operands)
 
         # some instructions (i.e. invoke) need to do stack manipulations
         # with the stack model containing the return value(s), so we fiddle
