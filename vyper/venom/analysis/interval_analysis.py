@@ -2,7 +2,7 @@ import math
 from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
 
-from vyper.venom.analysis.analysis import IRAnalysesCache, IRAnalysis
+from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
 
@@ -74,16 +74,16 @@ class MapLattice:
         return MapLattice(self.data.copy())
 
     @staticmethod
-    def join(lattice : IntervalLattice, left: "MapLattice", right: "MapLattice") -> "MapLattice":
+    def join(lattice: IntervalLattice, left: "MapLattice", right: "MapLattice") -> "MapLattice":
         res = left.copy()
         res.join_inplace(lattice, right)
         return res
 
-    def join_inplace(self, lattice : IntervalLattice, right: "MapLattice"):
-        for (f, right_val) in right.data.items():
+    def join_inplace(self, lattice: IntervalLattice, right: "MapLattice"):
+        for f, right_val in right.data.items():
             left_val = self.data.get(f, Interval.get_bot())
             self.data[f] = lattice.join(right_val, left_val)
-    
+
     def update(self, var: IRVariable, val: Interval) -> bool:
         if var in self.data.keys() and self.data[var] == val:
             return False
@@ -92,7 +92,13 @@ class MapLattice:
 
     def get(self, var: IRVariable) -> Interval:
         return self.data[var]
-    
+
+    def __eq__(self, value: object, /) -> bool:
+        if not isinstance(value, MapLattice):
+            return False
+
+        return self.data == value.data
+
     @staticmethod
     def get_bot() -> "MapLattice":
         return MapLattice(dict())
@@ -105,8 +111,27 @@ class IntervalAnalysis(IRAnalysis):
 
     def analyze(self):
         self.analyses_cache.request_analysis(LivenessAnalysis)
+        self.lattice = IntervalLattice(self._get_constants())
+        self.intervals = dict()
+        self.intervals_outs = dict()
 
-        self._handle_bb(self.function.entry)
+        while True:
+            change = False
+            for bb in self.function.get_basic_blocks():
+                change |= self._handle_bb(bb)
+
+            if not change:
+                break
+
+    def _get_constants(self) -> list[int | float]:
+        res: list[int | float] = list()
+        for bb in self.function.get_basic_blocks():
+            for inst in bb.instructions:
+                if inst.opcode == "store" and inst.operands[0].value not in res:
+                    res.append(inst.operands[0].value)
+
+        res.sort()
+        return res
 
     def _operand_to_abs(self, op: IROperand, actual_state: MapLattice) -> Interval:
         if isinstance(op, IRVariable):
@@ -126,8 +151,16 @@ class IntervalAnalysis(IRAnalysis):
 
         for inst in bb.instructions:
             if isinstance(inst.output, IRVariable):
-                n_val = self.lattice.eval(inst, [self._operand_to_abs(op, actual_state) for op in inst.operands])
+                n_val = self.lattice.eval(
+                    inst, [self._operand_to_abs(op, actual_state) for op in inst.operands]
+                )
                 actual_state.update(inst.output, n_val)
+                if inst not in self.intervals.keys() or actual_state != self.intervals[inst]:
+                    change = True
+                    self.intervals[inst] = actual_state.copy()
+
+        if bb not in self.intervals_outs.keys() or actual_state != self.intervals_outs[bb]:
+            change = True
+            self.intervals_outs[bb] = actual_state
 
         return change
-
