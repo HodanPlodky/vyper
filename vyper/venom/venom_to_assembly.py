@@ -320,10 +320,23 @@ class VenomCompiler:
         ops: list[IROperand],
         stack: StackModel,
         next_liveness: OrderedSet[IRVariable],
+        dry_run: bool = False
     ):
         if len(ops) == 0:
             return
-        #ops = list(reversed(ops))
+        
+        if dry_run:
+            assert len(assembly) == 0
+            stack = stack.copy()
+
+        """
+        swaped_ops = False
+        if inst.opcode in COMMUTATIVE_INSTRUCTIONS:
+            if stack._stack[-2:] == list(reversed(ops)):
+                ops[0], ops[1] = ops[1], ops[0]
+                swaped_ops = True
+        """
+
         val_positions: list[int] = [
             pos for (pos, elem) in enumerate(ops) if isinstance(elem, IRLiteral | IRLabel)
         ]
@@ -335,14 +348,11 @@ class VenomCompiler:
         counts = Counter(map(lambda x: ops[x], var_positions))
         for var, count in counts.items():
             if var in next_liveness: 
-                #print(f"a {push_count}")
                 push_count += count
             else:
-                #print(f"b {push_count}")
                 push_count += count - 1
 
         emitted_ops = OrderedSet[IROperand]()
-        #print("\t", inst, stack, push_count)
 
         assert len(val_positions) + len(var_positions) == len(ops), (
             val_positions,
@@ -541,6 +551,15 @@ class VenomCompiler:
             return apply_line_numbers(inst, assembly)
 
         # Step 2: Emit instruction's input operands
+        if opcode in COMMUTATIVE_INSTRUCTIONS:
+            normal = []
+            self._emit_input_operands(normal, inst, operands, stack, next_liveness, dry_run=True)
+            swaped_ops = [operands[-1], operands[-2]]
+            swaped = []
+            self._emit_input_operands(swaped, inst, swaped_ops, stack, next_liveness, dry_run=True)
+            if len(normal) > len(swaped):
+                operands[-1], operands[-2] = operands[-2], operands[-1]
+
         self._emit_input_operands(assembly, inst, operands, stack, next_liveness)
         #print(inst, stack)
 
