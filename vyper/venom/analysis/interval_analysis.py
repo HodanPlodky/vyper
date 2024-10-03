@@ -3,6 +3,7 @@ from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
 
 from vyper.venom.analysis.analysis import IRAnalysis
+from vyper.venom.analysis.cfg import CFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
 
@@ -24,6 +25,9 @@ class Interval:
     def from_val(val: int) -> "Interval":
         return Interval(val, val)
 
+    def __repr__(self) -> str:
+        return f"[{self.bot}, {self.top}]"
+
 
 class IntervalLattice:
     constants: list[int | float]  # ordered
@@ -40,9 +44,7 @@ class IntervalLattice:
         bot = (
             interval.bot if interval.bot == self.constants[pos_bot] else self.constants[pos_bot - 1]
         )
-        top = (
-            interval.top if interval.top == self.constants[pos_top] else self.constants[pos_top - 1]
-        )
+        top = interval.top if interval.top == self.constants[pos_top] else self.constants[pos_top]
 
         return Interval(bot, top)
 
@@ -51,7 +53,7 @@ class IntervalLattice:
             return left
         res = Interval(
             left.bot if left.bot < right.bot else right.bot,
-            left.top if left.top < right.top else right.top,
+            left.top if left.top > right.top else right.top,
         )
         return self.widen(res)
 
@@ -61,7 +63,10 @@ class IntervalLattice:
         elif inst.opcode == "add":
             return Interval(abs_ops[0].bot + abs_ops[1].bot, abs_ops[0].top + abs_ops[1].top)
         elif inst.opcode == "phi":
-            pass
+            res: Interval = Interval.get_bot()
+            for op in abs_ops:
+                res = self.join(res, op)
+            return res
         else:
             return Interval.get_top()
 
@@ -93,7 +98,7 @@ class MapLattice:
         return True
 
     def get(self, var: IRVariable) -> Interval:
-        return self.data[var]
+        return self.data.get(var, Interval.get_bot())
 
     def __eq__(self, value: object, /) -> bool:
         if not isinstance(value, MapLattice):
@@ -105,15 +110,21 @@ class MapLattice:
     def get_bot() -> "MapLattice":
         return MapLattice(dict())
 
+    def __repr__(self) -> str:
+        return repr(self.data)
+
 
 class IntervalAnalysis(IRAnalysis):
     intervals: dict[IRInstruction, MapLattice]
     intervals_outs: dict[IRBasicBlock, MapLattice]
     lattice: IntervalLattice
 
-    def analyze(self):
+    def analyze(self, consts: list[int | float] | None = None):
+        if consts is None:
+            consts = list()
         self.analyses_cache.request_analysis(LivenessAnalysis)
-        self.lattice = IntervalLattice(self._get_constants())
+        self.analyses_cache.request_analysis(CFGAnalysis)
+        self.lattice = IntervalLattice(self._get_constants(consts))
         self.intervals = dict()
         self.intervals_outs = dict()
 
@@ -125,8 +136,8 @@ class IntervalAnalysis(IRAnalysis):
             if not change:
                 break
 
-    def _get_constants(self) -> list[int | float]:
-        res: list[int | float] = list()
+    def _get_constants(self, consts: list[int | float]) -> list[int | float]:
+        res: list[int | float] = consts
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 if inst.opcode == "store" and inst.operands[0].value not in res:
@@ -143,6 +154,12 @@ class IntervalAnalysis(IRAnalysis):
         else:
             return Interval.get_top()
 
+    def _get_abs_op(self, inst: IRInstruction, actual_state: MapLattice) -> list[Interval]:
+        if inst.opcode == "phi":
+            return [self._operand_to_abs(op, actual_state) for (_, op) in inst.phi_operands]
+        else:
+            return [self._operand_to_abs(op, actual_state) for op in inst.operands]
+
     def _handle_bb(self, bb: IRBasicBlock) -> bool:
         actual_state = MapLattice.get_bot()
         for in_bb in bb.cfg_in:
@@ -153,16 +170,21 @@ class IntervalAnalysis(IRAnalysis):
 
         for inst in bb.instructions:
             if isinstance(inst.output, IRVariable):
-                n_val = self.lattice.eval(
-                    inst, [self._operand_to_abs(op, actual_state) for op in inst.operands]
-                )
+                n_val = self.lattice.eval(inst, self._get_abs_op(inst, actual_state))
                 actual_state.update(inst.output, n_val)
                 if inst not in self.intervals.keys() or actual_state != self.intervals[inst]:
                     change = True
                     self.intervals[inst] = actual_state.copy()
 
-        if bb not in self.intervals_outs.keys() or actual_state != self.intervals_outs[bb]:
+        tmp_data = dict()
+        for var in bb.out_vars:
+            tmp_data[var] = actual_state.get(var)
+        tmp_actual = MapLattice(tmp_data)
+        if bb not in self.intervals_outs.keys() or tmp_actual != self.intervals_outs[bb]:
             change = True
-            self.intervals_outs[bb] = actual_state
+            self.intervals_outs[bb] = tmp_actual
 
         return change
+
+    def get_intervals(self, inst: IRInstruction) -> MapLattice:
+        return self.intervals.get(inst, MapLattice.get_bot())
