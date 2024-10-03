@@ -58,8 +58,10 @@ class IntervalLattice:
     def eval(self, inst: IRInstruction, abs_ops: list[Interval]) -> Interval:
         if inst.opcode == "store":
             return abs_ops[0]
-        if inst.opcode == "add":
+        elif inst.opcode == "add":
             return Interval(abs_ops[0].bot + abs_ops[1].bot, abs_ops[0].top + abs_ops[1].top)
+        elif inst.opcode == "phi":
+            pass
         else:
             return Interval.get_top()
 
