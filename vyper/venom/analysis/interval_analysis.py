@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from vyper.venom.analysis.analysis import IRAnalysis
 from vyper.venom.analysis.cfg import CFGAnalysis
+from vyper.venom.analysis.dfg import DFGAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRBasicBlock, IRInstruction, IRLiteral, IROperand, IRVariable
 
@@ -28,9 +29,12 @@ class Interval:
     def __repr__(self) -> str:
         return f"[{self.bot}, {self.top}]"
 
+    def is_const(self) -> bool:
+        return self.bot == self.top and not math.isinf(self.bot)
+
 
 class IntervalLattice:
-    constants: list[int | float]  # ordered
+    constants: list[int | float]  # must be ordered
 
     def __init__(self, constants: list[int | float]):
         self.constants = constants
@@ -188,3 +192,26 @@ class IntervalAnalysis(IRAnalysis):
 
     def get_intervals(self, inst: IRInstruction) -> MapLattice:
         return self.intervals.get(inst, MapLattice.get_bot())
+
+    def _constrain(self, var: IRVariable, actual_state: MapLattice, pred: bool = True) -> MapLattice:
+        dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        assert isinstance(dfg, DFGAnalysis)
+        inst = dfg.get_producing_instruction(var)
+        assert isinstance(inst, IRInstruction)
+        opcode = inst.opcode
+
+        if opcode == "iszero":
+            assert isinstance(inst.operands[0], IRVariable)
+            return self._constrain(inst.operands[0], actual_state, not pred)
+        elif  opcode == "lt":
+            abs_ops = self._get_abs_op(inst, actual_state)
+            assert len(abs_ops) == 2
+            if not abs_ops[0].is_const() and not abs_ops[1].is_const():
+                return actual_state
+            if pred:
+                pass
+            else:
+                pass
+        elif opcode == "gt":
+            pass
+        return actual_state
