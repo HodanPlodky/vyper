@@ -63,13 +63,13 @@ def test_interval_analysis_assert_constrain():
     assert isinstance(interval_analysis, IntervalAnalysis)
 
     assert isinstance(var_1, IRVariable)
-    assert interval_analysis.intervals_outs[bb_loop][bb_loop].get(var_1) == Interval(11, 23)
+    assert interval_analysis.intervals_outs[bb_loop][bb_loop].get(var_1) == Interval(11, 22)
 
     interval_analysis = ac.force_analysis(IntervalAnalysis, consts=[100])
     assert isinstance(interval_analysis, IntervalAnalysis)
 
     assert isinstance(var_1, IRVariable)
-    assert interval_analysis.intervals_outs[bb_loop][bb_loop].get(var_1) == Interval(11, 23)
+    assert interval_analysis.intervals_outs[bb_loop][bb_loop].get(var_1) == Interval(11, 22)
 
 
 def test_interval_analysis_custom_costants():
@@ -141,3 +141,36 @@ def test_interval_analysis_constrain_jnz():
 
     assert isinstance(res, IRVariable)
     assert interval_analysis.get_intervals(exit_bb.instructions[0]).get(res) == Interval(10, 1000)
+
+def test_interval_analysis_constrain_sameval():
+    ctx = IRContext()
+    fn = ctx.create_function("test")
+
+    bb = fn.get_basic_block()
+    then_bb = IRBasicBlock(IRLabel("then"), fn)
+    exit_bb = IRBasicBlock(IRLabel("exit"), fn)
+    fn.append_basic_block(then_bb)
+    fn.append_basic_block(exit_bb)
+
+    num = bb.append_instruction("store", 10)
+    var_0 = bb.append_instruction("add", num, num)
+
+    constrain_var = bb.append_instruction("store", 63)
+    cond = bb.append_instruction("lt", var_0, constrain_var)
+    bb.append_instruction("jnz", cond, then_bb.label, exit_bb.label)
+
+    num_a = then_bb.append_instruction("store", 15)
+    num_b = then_bb.append_instruction("store", 5)
+    var_1 = then_bb.append_instruction("add", num_a, num_b)
+    then_bb.append_instruction("jmp", exit_bb.label)
+
+    res = exit_bb.append_instruction("phi", then_bb.label, var_1, bb.label, var_0)
+    exit_bb.append_instruction("stop")
+
+    ac = IRAnalysesCache(fn)
+
+    interval_analysis = ac.force_analysis(IntervalAnalysis)
+    assert isinstance(interval_analysis, IntervalAnalysis)
+
+    assert isinstance(res, IRVariable)
+    assert interval_analysis.get_intervals(exit_bb.instructions[0]).get(res) == Interval(20, 20)

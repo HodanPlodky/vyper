@@ -36,20 +36,30 @@ class Interval:
     def __repr__(self) -> str:
         return f"[{self.bot}, {self.top}]"
 
+    def is_bot(self) -> bool:
+        return self.top == -math.inf and self.bot == math.inf
+
     def is_const(self) -> bool:
         return self.bot == self.top and not math.isinf(self.bot)
 
     def enclose(self, other: "Interval") -> bool:
         return self.bot < other.bot < self.top and self.bot < other.top < self.top
 
-    def cost_to_inf(self) -> "Interval":
-        assert self.is_const()
-        return Interval(self.top, math.inf)
+    def expand_to_inf(self) -> "Interval":
+        return Interval(self.bot, math.inf)
 
-    def cost_to_neginf(self) -> "Interval":
-        assert self.is_const()
-        return Interval(-math.inf, self.bot)
+    def expand_to_neginf(self) -> "Interval":
+        return Interval(-math.inf, self.top)
 
+    def must_be_lt(self, other: "Interval") -> "Interval":
+        other = other.sub(1).expand_to_inf()
+        return self.constrain_by(other)
+
+    def must_be_gt(self, other: "Interval") -> "Interval":
+        other = other.add(1).expand_to_neginf()
+        return self.constrain_by(other)
+
+    # TODO check if this does not create of by one errors
     def constrain_by(self, other: "Interval") -> "Interval":
         bot = self.bot
         top = self.top
@@ -63,6 +73,14 @@ class Interval:
             top = other.bot
         return Interval(bot, top)
 
+    def add(self, other: "Interval | int") -> "Interval":
+        if isinstance(other, int):
+            return Interval(self.bot + other, self.top + other)
+        if isinstance(other, Interval):
+            return Interval(self.bot + other.bot, self.top + other.top)
+
+    def sub(self, other: int) -> "Interval":
+        return Interval(self.bot - other, self.top - other)
 
 class IntervalLattice:
     constants: list[int | float]  # must be ordered
@@ -84,6 +102,10 @@ class IntervalLattice:
         return Interval(bot, top)
 
     def join(self, left: Interval, right: Interval) -> Interval:
+        if left.is_bot():
+            return right
+        if right.is_bot():
+            return left
         if left == right:
             return left
         res = Interval(
@@ -287,15 +309,15 @@ class IntervalAnalysis(IRAnalysis):
             if not abs_ops[0].is_const() and not abs_ops[1].is_const():
                 return actual_state
             if pred:
-                if abs_ops[0].is_const():
-                    abs_ops[1] = abs_ops[1].constrain_by(abs_ops[0].cost_to_inf())
                 if abs_ops[1].is_const():
-                    abs_ops[0] = abs_ops[0].constrain_by(abs_ops[1].cost_to_inf())
+                    abs_ops[0] = abs_ops[0].must_be_lt(abs_ops[1])
+                elif abs_ops[0].is_const():
+                    abs_ops[1] = abs_ops[1].must_be_gt(abs_ops[0])
             else:
-                if abs_ops[0].is_const():
-                    abs_ops[1] = abs_ops[1].constrain_by(abs_ops[0].cost_to_neginf())
                 if abs_ops[1].is_const():
-                    abs_ops[0] = abs_ops[0].constrain_by(abs_ops[1].cost_to_neginf())
+                    abs_ops[0] = abs_ops[0].must_be_gt(abs_ops[1].add(1))
+                elif abs_ops[0].is_const():
+                    abs_ops[1] = abs_ops[1].must_be_lt(abs_ops[0].sub(1))
             assert isinstance(inst.operands[0], IRVariable)
             assert isinstance(inst.operands[1], IRVariable)
             actual_state.update(inst.operands[0], abs_ops[0])
