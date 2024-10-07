@@ -31,6 +31,7 @@ class Interval:
 
     @staticmethod
     def from_val(val: int) -> "Interval":
+        assert isinstance(val, int), "yo"
         return Interval(val, val)
 
     def __repr__(self) -> str:
@@ -219,6 +220,7 @@ class IntervalAnalysis(IRAnalysis):
             return [self._operand_to_abs(op, actual_state) for op in inst.operands]
 
     def _handle_bb(self, bb: IRBasicBlock) -> bool:
+        #print("start", bb.label)
         actual_state = MapLattice.get_bot()
         for in_bb in bb.cfg_in:
             item = self.intervals_outs.get(in_bb, dict()).get(bb, MapLattice.get_bot())
@@ -227,6 +229,7 @@ class IntervalAnalysis(IRAnalysis):
         change = False
 
         for inst in bb.instructions:
+            #print(inst)
             if isinstance(inst.output, IRVariable):
                 n_val = self.lattice.eval(inst, self._get_abs_op(inst, actual_state))
                 actual_state.update(inst.output, n_val)
@@ -279,6 +282,7 @@ class IntervalAnalysis(IRAnalysis):
                     change = True
                     self.intervals_outs[bb][out_bb] = tmp_actual
 
+        #print("end", bb.label)
         return change
 
     def simplify_state(self, bb: IRBasicBlock, actual_state: MapLattice) -> MapLattice:
@@ -293,12 +297,14 @@ class IntervalAnalysis(IRAnalysis):
 
     def _constrain(
         self, var: IRVariable, actual_state: MapLattice, pred: bool = True
-    ) -> MapLattice:
+    ) -> tuple[MapLattice, bool]:
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
         assert isinstance(dfg, DFGAnalysis)
         inst = dfg.get_producing_instruction(var)
         assert isinstance(inst, IRInstruction)
         opcode = inst.opcode
+
+        change = False
 
         if opcode == "iszero":
             assert isinstance(inst.operands[0], IRVariable)
@@ -307,7 +313,7 @@ class IntervalAnalysis(IRAnalysis):
             abs_ops = self._get_abs_op(inst, actual_state)
             assert len(abs_ops) == 2
             if not abs_ops[0].is_const() and not abs_ops[1].is_const():
-                return actual_state
+                return actual_state, change
             if pred:
                 if abs_ops[1].is_const():
                     abs_ops[0] = abs_ops[0].must_be_lt(abs_ops[1])
@@ -320,8 +326,8 @@ class IntervalAnalysis(IRAnalysis):
                     abs_ops[1] = abs_ops[1].must_be_lt(abs_ops[0].sub(1))
             assert isinstance(inst.operands[0], IRVariable)
             assert isinstance(inst.operands[1], IRVariable)
-            actual_state.update(inst.operands[0], abs_ops[0])
-            actual_state.update(inst.operands[1], abs_ops[1])
+            change |= actual_state.update(inst.operands[0], abs_ops[0])
+            change |= actual_state.update(inst.operands[1], abs_ops[1])
         elif opcode == "gt":
             pass
-        return actual_state
+        return actual_state, change
