@@ -167,6 +167,7 @@ def test_interval_analysis_constrain_sameval():
     res = exit_bb.append_instruction("phi", then_bb.label, var_1, bb.label, var_0)
     exit_bb.append_instruction("stop")
 
+
     ac = IRAnalysesCache(fn)
 
     interval_analysis = ac.force_analysis(IntervalAnalysis)
@@ -174,3 +175,4 @@ def test_interval_analysis_constrain_sameval():
 
     assert isinstance(res, IRVariable)
     assert interval_analysis.get_intervals(exit_bb.instructions[0]).get(res) == Interval(20, 20)
+

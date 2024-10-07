@@ -31,7 +31,6 @@ class Interval:
 
     @staticmethod
     def from_val(val: int) -> "Interval":
-        assert isinstance(val, int), "yo"
         return Interval(val, val)
 
     def __repr__(self) -> str:
@@ -200,7 +199,8 @@ class IntervalAnalysis(IRAnalysis):
         for bb in self.function.get_basic_blocks():
             for inst in bb.instructions:
                 if inst.opcode == "store" and inst.operands[0].value not in res:
-                    res.append(inst.operands[0].value)
+                    if isinstance(inst.operands[0].value, int):
+                        res.append(inst.operands[0].value)
 
         res.sort()
         return res
@@ -209,6 +209,7 @@ class IntervalAnalysis(IRAnalysis):
         if isinstance(op, IRVariable):
             return actual_state.get(op)  # should be always in the dict (otherwise it is my fault)
         elif isinstance(op, IRLiteral):
+            assert isinstance(op.value, int), "must be inmust be int"
             return Interval.from_val(op.value)
         else:
             return Interval.get_top()
@@ -220,7 +221,6 @@ class IntervalAnalysis(IRAnalysis):
             return [self._operand_to_abs(op, actual_state) for op in inst.operands]
 
     def _handle_bb(self, bb: IRBasicBlock) -> bool:
-        #print("start", bb.label)
         actual_state = MapLattice.get_bot()
         for in_bb in bb.cfg_in:
             item = self.intervals_outs.get(in_bb, dict()).get(bb, MapLattice.get_bot())
@@ -229,7 +229,6 @@ class IntervalAnalysis(IRAnalysis):
         change = False
 
         for inst in bb.instructions:
-            #print(inst)
             if isinstance(inst.output, IRVariable):
                 n_val = self.lattice.eval(inst, self._get_abs_op(inst, actual_state))
                 actual_state.update(inst.output, n_val)
@@ -237,7 +236,7 @@ class IntervalAnalysis(IRAnalysis):
                     change = True
                     self.intervals[inst] = actual_state.copy()
             elif inst.opcode == "assert":
-                assert isinstance(inst.operands[0], IRVariable)
+                assert isinstance(inst.operands[0], IRVariable), "must be var"
                 self._constrain(inst.operands[0], actual_state)
 
         if bb not in self.intervals_outs.keys():
@@ -249,14 +248,14 @@ class IntervalAnalysis(IRAnalysis):
             zero_label = inst.operands[2]
             non_zero_state = actual_state.copy()
             var = inst.operands[0]
-            assert isinstance(var, IRVariable)
+            assert isinstance(var, IRVariable), "must be var"
             self._constrain(var, non_zero_state)
             self._constrain(var, actual_state, pred=False)
             non_zero_state = self.simplify_state(bb, non_zero_state)
             zero_state = self.simplify_state(bb, actual_state)
 
-            assert isinstance(non_zero_label, IRLabel)
-            assert isinstance(zero_label, IRLabel)
+            assert isinstance(non_zero_label, IRLabel), "must be label"
+            assert isinstance(zero_label, IRLabel), "must be label"
             non_zero_bb = self.function.get_basic_block(non_zero_label.value)
             zero_bb = self.function.get_basic_block(zero_label.value)
             if (
@@ -282,7 +281,6 @@ class IntervalAnalysis(IRAnalysis):
                     change = True
                     self.intervals_outs[bb][out_bb] = tmp_actual
 
-        #print("end", bb.label)
         return change
 
     def simplify_state(self, bb: IRBasicBlock, actual_state: MapLattice) -> MapLattice:
@@ -299,19 +297,19 @@ class IntervalAnalysis(IRAnalysis):
         self, var: IRVariable, actual_state: MapLattice, pred: bool = True
     ) -> tuple[MapLattice, bool]:
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
-        assert isinstance(dfg, DFGAnalysis)
+        assert isinstance(dfg, DFGAnalysis), "type error"
         inst = dfg.get_producing_instruction(var)
-        assert isinstance(inst, IRInstruction)
+        assert isinstance(inst, IRInstruction), "must be instruction"
         opcode = inst.opcode
 
         change = False
 
         if opcode == "iszero":
-            assert isinstance(inst.operands[0], IRVariable)
+            assert isinstance(inst.operands[0], IRVariable), "must be var"
             return self._constrain(inst.operands[0], actual_state, not pred)
         elif opcode == "lt":
             abs_ops = self._get_abs_op(inst, actual_state)
-            assert len(abs_ops) == 2
+            assert len(abs_ops) == 2, "lt must have two operands"
             if not abs_ops[0].is_const() and not abs_ops[1].is_const():
                 return actual_state, change
             if pred:
@@ -324,10 +322,11 @@ class IntervalAnalysis(IRAnalysis):
                     abs_ops[0] = abs_ops[0].must_be_gt(abs_ops[1].add(1))
                 elif abs_ops[0].is_const():
                     abs_ops[1] = abs_ops[1].must_be_lt(abs_ops[0].sub(1))
-            assert isinstance(inst.operands[0], IRVariable)
-            assert isinstance(inst.operands[1], IRVariable)
-            change |= actual_state.update(inst.operands[0], abs_ops[0])
-            change |= actual_state.update(inst.operands[1], abs_ops[1])
-        elif opcode == "gt":
-            pass
+
+            if isinstance(inst.operands[0], IRVariable):
+                change |= actual_state.update(inst.operands[0], abs_ops[0])
+            if isinstance(inst.operands[1], IRVariable):
+                change |= actual_state.update(inst.operands[1], abs_ops[1])
+        else:
+            change |= True
         return actual_state, change
