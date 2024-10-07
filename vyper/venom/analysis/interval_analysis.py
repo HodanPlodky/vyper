@@ -234,10 +234,10 @@ class IntervalAnalysis(IRAnalysis):
                 actual_state.update(inst.output, n_val)
                 if inst not in self.intervals.keys() or actual_state != self.intervals[inst]:
                     change = True
-                    self.intervals[inst] = actual_state.copy()
             elif inst.opcode == "assert":
                 assert isinstance(inst.operands[0], IRVariable), "must be var"
                 self._constrain(inst.operands[0], actual_state)
+            self.intervals[inst] = actual_state.copy()
 
         if bb not in self.intervals_outs.keys():
             change = True
@@ -311,7 +311,7 @@ class IntervalAnalysis(IRAnalysis):
             abs_ops = self._get_abs_op(inst, actual_state)
             assert len(abs_ops) == 2, "lt must have two operands"
             if not abs_ops[0].is_const() and not abs_ops[1].is_const():
-                return actual_state, change
+                return actual_state, True
             if pred:
                 if abs_ops[1].is_const():
                     abs_ops[0] = abs_ops[0].must_be_lt(abs_ops[1])
@@ -327,6 +327,42 @@ class IntervalAnalysis(IRAnalysis):
                 change |= actual_state.update(inst.operands[0], abs_ops[0])
             if isinstance(inst.operands[1], IRVariable):
                 change |= actual_state.update(inst.operands[1], abs_ops[1])
+        elif opcode == "gt":
+            abs_ops = self._get_abs_op(inst, actual_state)
+            assert len(abs_ops) == 2, "gt must have two operands"
+            if not abs_ops[0].is_const() and not abs_ops[1].is_const():
+                return actual_state, True
+            if pred:
+                if abs_ops[1].is_const():
+                    abs_ops[0] = abs_ops[0].must_be_gt(abs_ops[1])
+                elif abs_ops[0].is_const():
+                    abs_ops[1] = abs_ops[1].must_be_lt(abs_ops[0])
+            else:
+                if abs_ops[1].is_const():
+                    abs_ops[0] = abs_ops[0].must_be_lt(abs_ops[1].add(1))
+                elif abs_ops[0].is_const():
+                    abs_ops[1] = abs_ops[1].must_be_gt(abs_ops[0].sub(1))
+
+            if isinstance(inst.operands[0], IRVariable):
+                change |= actual_state.update(inst.operands[0], abs_ops[0])
+            if isinstance(inst.operands[1], IRVariable):
+                change |= actual_state.update(inst.operands[1], abs_ops[1])
+        elif opcode == "eq":
+            abs_ops = self._get_abs_op(inst, actual_state)
+            assert len(abs_ops) == 2, "gt must have two operands"
+            if not abs_ops[0].is_const() and not abs_ops[1].is_const():
+                return actual_state, True
+            if abs_ops[0].is_const() and abs_ops[1].is_const():
+                return actual_state, abs_ops[0] != abs_ops[1] # would require change
+            if abs_ops[0].is_const():
+                abs_ops[1] = abs_ops[0]
+            if abs_ops[1].is_const():
+                abs_ops[0] = abs_ops[1]
+            if isinstance(inst.operands[0], IRVariable):
+                change |= actual_state.update(inst.operands[0], abs_ops[0])
+            if isinstance(inst.operands[1], IRVariable):
+                change |= actual_state.update(inst.operands[1], abs_ops[1])
+
         else:
             change |= True
         return actual_state, change
