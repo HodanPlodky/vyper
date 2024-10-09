@@ -120,6 +120,11 @@ class IntervalLattice:
             return abs_ops[0]
         elif opcode == "add":
             return Interval(abs_ops[0].bot + abs_ops[1].bot, abs_ops[0].top + abs_ops[1].top)
+        elif opcode == "sub":
+            return Interval(abs_ops[0].bot - abs_ops[1].top, abs_ops[0].top - abs_ops[1].bot)
+        elif False and opcode == "mul":
+            poss = [abs_ops[0].bot * abs_ops[1].bot, abs_ops[0].bot * abs_ops[1].top, abs_ops[0].top * abs_ops[1].bot, abs_ops[0].top * abs_ops[1].top]
+            return Interval(min(*poss), max(*poss))
         elif opcode == "phi":
             res: Interval = Interval.get_bot()
             for op in abs_ops:
@@ -362,6 +367,24 @@ class IntervalAnalysis(IRAnalysis):
                 change |= actual_state.update(inst.operands[0], abs_ops[0])
             if isinstance(inst.operands[1], IRVariable):
                 change |= actual_state.update(inst.operands[1], abs_ops[1])
+
+        elif opcode == "and" and pred:
+            if (isinstance(inst.operands[0], IRVariable)
+                and isinstance(inst.operands[1], IRVariable)):
+                _, change_a = self._constrain(inst.operands[0], actual_state, pred)
+                _, change_b = self._constrain(inst.operands[1], actual_state, pred)
+                change |= change_a | change_b
+            else:
+                change |= True
+
+        elif opcode == "or" and not pred:
+            if (isinstance(inst.operands[0], IRVariable)
+                and isinstance(inst.operands[1], IRVariable)):
+                _, change_a = self._constrain(inst.operands[0], actual_state, pred)
+                _, change_b = self._constrain(inst.operands[1], actual_state, pred)
+                change |= change_a | change_b
+            else:
+                change |= True
 
         else:
             change |= True

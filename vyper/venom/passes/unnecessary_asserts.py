@@ -9,7 +9,8 @@ class RemoveUnnecessaryAssertsPass(IRPass):
     dfg: DFGAnalysis
 
     def run_pass(self, *args, **kwargs):
-        interval_analysis = self.analyses_cache.request_analysis(IntervalAnalysis)
+        consts = [x for x in range(256, 8)]
+        interval_analysis = self.analyses_cache.request_analysis(IntervalAnalysis, consts)
         assert isinstance(interval_analysis, IntervalAnalysis)
         self.interval_analysis = interval_analysis
 
