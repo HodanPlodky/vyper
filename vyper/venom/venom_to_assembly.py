@@ -62,6 +62,7 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "selfdestruct",
         "signextend",
         "stop",
+        "return",
         "shr",
         "shl",
         "sar",
@@ -86,6 +87,7 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "gt",
         "slt",
         "sgt",
+        "sha3",
         "create",
         "create2",
         "msize",
@@ -93,6 +95,7 @@ _ONE_TO_ONE_INSTRUCTIONS = frozenset(
         "call",
         "staticcall",
         "delegatecall",
+        "codecopy",
         "codesize",
         "basefee",
         "blobhash",
@@ -466,7 +469,7 @@ class VenomCompiler:
             pass
         elif opcode == "dbname":
             pass
-        elif opcode in ["codecopy", "dloadbytes"]:
+        elif opcode == "dloadbytes":
             assembly.append("CODECOPY")
         elif opcode == "jnz":
             # jump if not zero
@@ -507,14 +510,10 @@ class VenomCompiler:
             self.label_counter += 1
         elif opcode == "ret":
             assembly.append("JUMP")
-        elif opcode == "return":
-            assembly.append("RETURN")
         elif opcode == "exit":
             assembly.extend(["_sym__ctor_exit", "JUMP"])
         elif opcode == "phi":
             pass
-        elif opcode == "sha3":
-            assembly.append("SHA3")
         elif opcode == "sha3_64":
             assembly.extend(
                 [
