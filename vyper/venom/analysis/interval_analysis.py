@@ -298,6 +298,10 @@ class IntervalAnalysis(IRAnalysis):
     def get_intervals(self, inst: IRInstruction) -> MapLattice:
         return self.intervals.get(inst, MapLattice.get_bot())
 
+    def get_val(self, inst: IRInstruction, op: IROperand) -> Interval:
+        state = self.intervals.get(inst, MapLattice.get_bot())
+        return self._operand_to_abs(op, state)
+
     def _constrain(
         self, var: IRVariable, actual_state: MapLattice, pred: bool = True
     ) -> tuple[MapLattice, bool]:
