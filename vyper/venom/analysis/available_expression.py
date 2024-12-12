@@ -27,20 +27,26 @@ class _Expression:
     # there are possibilities for cycles
     operands: list["IROperand | _Expression"]
     ignore_msize: bool
+    eq_vars: VarEquivalenceAnalysis
 
     # equality for lattices only based on original instruction
     def __eq__(self, other) -> bool:
+        return self.same(other)
         if not isinstance(other, _Expression):
             return False
 
         return self.inst == other.inst
 
     def __hash__(self) -> int:
+        res = hash(self.opcode)
+        for op in self.operands:
+            res ^= hash(op)
+        return res
         return hash(self.inst)
 
     # Full equality for expressions based on opcode and operands
-    def same(self, other, eq_vars: VarEquivalenceAnalysis) -> bool:
-        return same(self, other, eq_vars)
+    def same(self, other) -> bool:
+        return same(self, other, self.eq_vars)
 
     def __repr__(self) -> str:
         if self.opcode == "store":
@@ -135,8 +141,11 @@ def same(
 
 
 class CSEAnalysis(IRAnalysis):
+    # cache
     inst_to_expr: dict[IRInstruction, _Expression]
     dfg: DFGAnalysis
+
+    # result
     inst_to_available: dict[IRInstruction, OrderedSet[_Expression]]
     bb_outs: dict[IRBasicBlock, OrderedSet[_Expression]]
     eq_vars: VarEquivalenceAnalysis
@@ -179,14 +188,31 @@ class CSEAnalysis(IRAnalysis):
                     return True
         return False
 
-    def _handle_bb(self, bb: IRBasicBlock) -> bool:
-        available_expr: OrderedSet[_Expression] = OrderedSet()
-        if len(bb.cfg_in) > 0:
-            available_expr = OrderedSet.intersection(
-                *(self.bb_outs.get(in_bb, OrderedSet()) for in_bb in bb.cfg_in)
-            )
+    def _join_in_bbs(self, bb: IRBasicBlock) -> dict[_Expression, IRInstruction]:
+        cfg_in_bb = bb.cfg_in
+        if len(cfg_in_bb) == 0:
+            return dict()
+        res = dict((e, e.inst) for e in self.bb_outs.get(cfg_in_bb.first(), OrderedSet()))
+        for in_bb in cfg_in_bb:
+            if len(res) == 0:
+                return res
+            if in_bb == cfg_in_bb.first():
+                continue
+            exprs = self.bb_outs.get(in_bb, OrderedSet())
+            for e in exprs:
+                if e in res:
+                    if e.inst != res[e]:
+                        del res[e]
+                else:
+                    res[e] = e.inst
+        return res
 
-        # bb_lat = self.lattice.data[bb]
+    def _handle_bb(self, bb: IRBasicBlock) -> bool:
+        print(bb.label)
+        available_expr: dict[_Expression, IRInstruction] = dict()
+        if len(bb.cfg_in) > 0:
+            available_expr = self._join_in_bbs(bb)
+
         change = False
         for inst in bb.instructions:
             # if inst.opcode in UNINTERESTING_OPCODES or inst.opcode in BB_TERMINATORS:
@@ -194,24 +220,24 @@ class CSEAnalysis(IRAnalysis):
                 continue
 
             # REVIEW: why replace inst_to_available if they are not equal?
-            if inst not in self.inst_to_available or available_expr != self.inst_to_available[inst]:
-                self.inst_to_available[inst] = available_expr.copy()
+            if inst not in self.inst_to_available or OrderedSet(available_expr.keys()) != self.inst_to_available[inst]:
+                self.inst_to_available[inst] = OrderedSet(available_expr.keys())
             inst_expr = self.get_expression(inst, available_expr)
             write_effects = inst_expr.get_writes
             for expr in available_expr.copy():
                 read_effects = expr.get_reads
                 if read_effects & write_effects != EMPTY:
-                    available_expr.remove(expr)
+                    del available_expr[expr]
                     continue
                 write_effects_expr = expr.get_writes
                 if write_effects_expr & write_effects != EMPTY:
-                    available_expr.remove(expr)
+                    del available_expr[expr]
 
             if inst_expr.get_writes_deep & inst_expr.get_reads_deep == EMPTY:
-                available_expr.add(inst_expr)
+                available_expr[inst_expr] = inst
 
-        if bb not in self.bb_outs or available_expr != self.bb_outs[bb]:
-            self.bb_outs[bb] = available_expr.copy()
+        if bb not in self.bb_outs or OrderedSet(available_expr.keys()) != self.bb_outs[bb]:
+            self.bb_outs[bb] = OrderedSet(available_expr.keys())
             # change is only necessery when the output of the
             # basic block is changed (otherwise it wont affect rest)
             change |= True
@@ -219,11 +245,11 @@ class CSEAnalysis(IRAnalysis):
         return change
 
     def _get_operand(
-        self, op: IROperand, available_exprs: OrderedSet[_Expression]
+        self, op: IROperand, available_exprs: dict[_Expression, IRInstruction]
     ) -> IROperand | _Expression:
         if isinstance(op, IRVariable):
             inst = self.dfg.get_producing_instruction(op)
-            assert inst is not None
+            assert inst is not None, f"({op}) inst"
             # this can both create better solutions and is necessery
             # for correct effect handle, otherwise you could go over
             # effect bounderies
@@ -239,26 +265,27 @@ class CSEAnalysis(IRAnalysis):
         return op
 
     def _get_operands(
-        self, inst: IRInstruction, available_exprs: OrderedSet[_Expression]
+        self, inst: IRInstruction, available_exprs: dict[_Expression, IRInstruction]
     ) -> list[IROperand | _Expression]:
         return [self._get_operand(op, available_exprs) for op in inst.operands]
 
     def get_expression(
-        self, inst: IRInstruction, available_exprs: OrderedSet[_Expression] | None = None
+        self, inst: IRInstruction, available_exprs: dict[_Expression, IRInstruction] | None = None
     ) -> _Expression:
-        available_exprs = available_exprs or self.inst_to_available.get(inst, OrderedSet())
-        assert available_exprs is not None
+        if available_exprs is None:
+            available_exprs = dict((e, e.inst) for e in self.inst_to_available.get(inst, OrderedSet()))
+        assert available_exprs is not None, "sanity check"
         operands: list[IROperand | _Expression] = self._get_operands(inst, available_exprs)
-        expr = _Expression(inst, inst.opcode, operands, self.ignore_msize)
+        expr = _Expression(inst, inst.opcode, operands, self.ignore_msize, self.eq_vars)
 
         if inst in self.inst_to_expr and self.inst_to_expr[inst] in available_exprs:
             return self.inst_to_expr[inst]
 
         # REVIEW: performance issue - loop over available_exprs.
-        for e in available_exprs:
-            if expr.same(e, self.eq_vars):
-                self.inst_to_expr[inst] = e
-                return e
+        if expr in available_exprs:
+            orig_inst = available_exprs[expr]
+            self.inst_to_expr[inst] = self.inst_to_expr[orig_inst]
+            return self.inst_to_expr[orig_inst]
 
         self.inst_to_expr[inst] = expr
         return expr

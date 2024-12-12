@@ -24,6 +24,7 @@ from vyper.venom.passes import (
     StoreExpansionPass,
 )
 from vyper.venom.venom_to_assembly import VenomCompiler
+from vyper.utils import timeit
 
 DEFAULT_OPT_LEVEL = OptimizationLevel.default()
 
@@ -70,7 +71,8 @@ def _run_passes(fn: IRFunction, optimize: OptimizationLevel) -> None:
 
     RemoveUnusedVariablesPass(ac, fn).run_pass()
 
-    CSE(ac, fn).run_pass()
+    with timeit(f"{fn.name}"):
+        CSE(ac, fn).run_pass()
     StoreExpansionPass(ac, fn).run_pass()
     RemoveUnusedVariablesPass(ac, fn).run_pass()
     DFTPass(ac, fn).run_pass()

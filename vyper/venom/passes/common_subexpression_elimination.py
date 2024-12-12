@@ -49,17 +49,21 @@ class CSE(IRPass):
         self.expression_analysis = available_expression_analysis
 
         while True:
+            #print("loop")
             replace_dict = self._find_replaceble()
             if len(replace_dict) == 0:
                 return
             self._replace(replace_dict)
             self.analyses_cache.invalidate_analysis(DFGAnalysis)
+            #print("a")
             self.analyses_cache.invalidate_analysis(LivenessAnalysis)
+            #print("b")
             # should be ok to be reevaluted
             # self.available_expression_analysis.analyze(min_depth, max_depth)
             self.expression_analysis = self.analyses_cache.force_analysis(
                 CSEAnalysis
             )  # type: ignore
+            #print("c")
 
     # return instruction and to which instruction it could
     # replaced by
@@ -67,6 +71,7 @@ class CSE(IRPass):
         res: dict[IRInstruction, IRInstruction] = dict()
 
         for bb in self.function.get_basic_blocks():
+            #print(f"adas {bb.label}")
             for inst in bb.instructions:
                 # skip instruction that for sure
                 # wont be substituted
