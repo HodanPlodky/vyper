@@ -268,10 +268,11 @@ class CSEAnalysis(IRAnalysis):
 
         change = False
         for inst in bb.instructions:
+            self.inst_to_effects[inst] = effects.copy()
+
             for eff in inst.get_write_effects():
                 effects[eff] += 1
 
-            self.inst_to_effects[inst] = effects.copy()
             continue
 
         available_expr = self.get_available_inbb(bb.instructions[-1], bb)
@@ -337,10 +338,10 @@ class CSEAnalysis(IRAnalysis):
             if all(curr_eff[e] < val for (e, val) in eff.items()):
                 break
 
-            for e in inst.get_read_effects() | inst.get_write_effects():
+            for e in inst.get_read_effects():
                 if curr_eff[e] != eff[e]:
                     continue
-            if inst == from_inst:
+            if inst.opcode == from_inst.opcode and inst.operands == from_inst.operands:
                 return inst
 
         return None

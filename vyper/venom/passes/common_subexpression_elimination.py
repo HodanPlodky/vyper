@@ -4,6 +4,7 @@ from vyper.venom.analysis.equivalent_vars import VarEquivalenceAnalysis
 from vyper.venom.analysis.liveness import LivenessAnalysis
 from vyper.venom.basicblock import IRInstruction, IRVariable
 from vyper.venom.passes.base_pass import IRPass
+from vyper.venom.passes.store_elimination import StoreElimination
 
 # instruction that are not usefull to be
 # substituted
@@ -57,6 +58,7 @@ class CSE(IRPass):
             self.analyses_cache.invalidate_analysis(DFGAnalysis)
             self.analyses_cache.invalidate_analysis(LivenessAnalysis)
             self.analyses_cache.invalidate_analysis(VarEquivalenceAnalysis)
+            StoreElimination(self.analyses_cache, self.function).run_pass()
             # should be ok to be reevaluted
             # self.expression_analysis.analyze()
             self.expression_analysis = self.analyses_cache.force_analysis(
