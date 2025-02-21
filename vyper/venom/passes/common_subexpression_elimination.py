@@ -69,7 +69,7 @@ class CSE(IRPass):
         res: dict[IRInstruction, IRInstruction] = dict()
 
         for bb in self.function.get_basic_blocks():
-            for inst in bb.instructions:
+            for (index, inst) in enumerate(bb.instructions):
                 # skip instruction that for sure
                 # wont be substituted
                 if (
@@ -77,13 +77,11 @@ class CSE(IRPass):
                     or inst.opcode in NONIDEMPOTENT_INSTRUCTIONS
                 ):
                     continue
-                inst_expr = self.expression_analysis.get_expression(inst)
+                same_inst = self.expression_analysis.get_first_same(index, inst, bb)
                 # heuristic to not replace small expressions
                 # basic block bounderies (it can create better codesize)
-                if inst_expr.inst != inst and (
-                    inst_expr.depth > 1 or inst.parent == inst_expr.inst.parent
-                ):
-                    res[inst] = inst_expr.inst
+                if same_inst is not None:
+                    res[inst] = same_inst
 
         return res
 

@@ -16,7 +16,7 @@ from vyper.venom.basicblock import (
     IRVariable,
 )
 from vyper.venom.context import IRFunction
-from vyper.venom.effects import EMPTY, Effects
+from vyper.venom.effects import EMPTY, Effects, ALL
 from vyper.venom.effects import reads as effect_reads
 from vyper.venom.effects import writes as effect_write
 
@@ -221,9 +221,8 @@ class _AvailableExpression:
 class CSEAnalysis(IRAnalysis):
     inst_to_expr: dict[IRInstruction, _Expression]
     dfg: DFGAnalysis
-    inst_to_available: dict[IRInstruction, _AvailableExpression]
-    bb_ins: dict[IRBasicBlock, _AvailableExpression]
-    bb_outs: dict[IRBasicBlock, _AvailableExpression]
+    inst_to_effects: dict[IRInstruction, dict[Effects, int]]
+    bb_outs: dict[IRBasicBlock, OrderedSet]
     eq_vars: VarEquivalenceAnalysis
 
     ignore_msize: bool
@@ -236,8 +235,8 @@ class CSEAnalysis(IRAnalysis):
         self.dfg = dfg
         self.eq_vars = self.analyses_cache.request_analysis(VarEquivalenceAnalysis)  # type: ignore
 
-        self.inst_to_expr = dict()
-        self.inst_to_available = dict()
+        self.inst_to_effects = dict()
+        #self.inst_to_available = dict()
         self.bb_ins = dict()
         self.bb_outs = dict()
 
@@ -265,35 +264,17 @@ class CSEAnalysis(IRAnalysis):
         return False
 
     def _handle_bb(self, bb: IRBasicBlock) -> bool:
-        available_expr: _AvailableExpression = _AvailableExpression.intersection(
-            *(self.bb_outs.get(out_bb, _AvailableExpression()) for out_bb in bb.cfg_in)
-        )
-
-        if bb in self.bb_ins and self.bb_ins[bb] == available_expr:
-            return False
-
-        self.bb_ins[bb] = available_expr.copy()
+        effects: dict[Effects, int] = {e:0  for e in ALL}
 
         change = False
         for inst in bb.instructions:
-            if inst.opcode in UNINTERESTING_OPCODES or inst.opcode in BB_TERMINATORS:
-                continue
+            for eff in inst.get_write_effects():
+                effects[eff] += 1
 
-            if inst not in self.inst_to_available or available_expr != self.inst_to_available[inst]:
-                self.inst_to_available[inst] = available_expr.copy()
+            self.inst_to_effects[inst] = effects.copy()
+            continue
 
-            expr = self._get_expression(inst, available_expr)
-            write_effects = expr.get_writes()
-            available_expr.remove_effect(write_effects)
-
-            # nonidempotent instruction effect other instructions
-            # but since it cannot be substituted it does not have
-            # to be added to available exprs
-            if inst.opcode in NONIDEMPOTENT_INSTRUCTIONS:
-                continue
-
-            if expr.get_writes() & expr.get_reads() == EMPTY:
-                available_expr.add(expr)
+        available_expr = self.get_available_inbb(bb.instructions[-1], bb)
 
         if bb not in self.bb_outs or available_expr != self.bb_outs[bb]:
             self.bb_outs[bb] = available_expr
@@ -347,3 +328,37 @@ class CSEAnalysis(IRAnalysis):
 
         self.inst_to_expr[inst] = expr
         return expr
+
+    def get_first_same(self, index: int, from_inst: IRInstruction, bb: IRBasicBlock) -> IRInstruction | None:
+        eff = self.inst_to_effects[from_inst]
+
+        for inst in reversed(bb.instructions[0:index]):
+            curr_eff = self.inst_to_effects[inst]
+            if all(curr_eff[e] < val for (e, val) in eff.items()):
+                break
+
+            for e in inst.get_read_effects() | inst.get_write_effects():
+                if curr_eff[e] != eff[e]:
+                    continue
+            if inst == from_inst:
+                return inst
+
+        return None
+                
+    
+    def get_available_inbb(self, from_inst: IRInstruction, bb: IRBasicBlock) -> OrderedSet[IRInstruction]:
+        eff = self.inst_to_effects[from_inst]
+        res = OrderedSet()
+
+        for inst in reversed(bb.instructions):
+            curr_eff = self.inst_to_effects[inst]
+            if all(curr_eff[e] < val for (e, val) in eff.items()):
+                break
+
+            for e in inst.get_read_effects() | inst.get_write_effects():
+                if curr_eff[e] != eff[e]:
+                    continue
+            res.add(inst)
+
+        return res
+                
