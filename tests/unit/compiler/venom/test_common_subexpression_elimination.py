@@ -4,6 +4,7 @@ from tests.hevm import hevm_check_venom
 from tests.venom_utils import assert_ctx_eq, parse_from_basic_block
 from vyper.venom.analysis.analysis import IRAnalysesCache
 from vyper.venom.passes.common_subexpression_elimination import CSE
+from vyper.venom.passes import StoreElimination
 
 pytestmark = pytest.mark.hevm
 
@@ -13,7 +14,11 @@ def _check_pre_post(pre: str, post: str, hevm: bool = True):
     for fn in ctx.functions.values():
         ac = IRAnalysesCache(fn)
         CSE(ac, fn).run_pass()
-    assert_ctx_eq(ctx, parse_from_basic_block(post))
+    post_ctx = parse_from_basic_block(post)
+    for fn in post_ctx.functions.values():
+        ac = IRAnalysesCache(fn)
+        StoreElimination(ac, fn).run_pass()
+    assert_ctx_eq(ctx, post_ctx)
 
     if not hevm:
         return
