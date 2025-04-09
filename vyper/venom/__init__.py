@@ -27,6 +27,7 @@ from vyper.venom.passes import (
     SimplifyCFGPass,
     StoreElimination,
     StoreExpansionPass,
+    RemoveNamesDBGPass,
 )
 from vyper.venom.venom_to_assembly import VenomCompiler
 

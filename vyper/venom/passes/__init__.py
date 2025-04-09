@@ -15,3 +15,4 @@ from .sccp import SCCP
 from .simplify_cfg import SimplifyCFGPass
 from .store_elimination import StoreElimination
 from .store_expansion import StoreExpansionPass
+from .remove_name_dbg_pass import RemoveNamesDBGPass
