@@ -343,3 +343,46 @@ def test_stack_order_more_phi():
     """
 
     _check_pre_post(pre, post)
+
+def test_stack_order_entry_instruction():
+    pre = """
+    main:
+        %p = param
+        %1 = add %p, 1
+        assert %1
+        %2 = add %p, 2
+        %cond = iszero %p
+        jnz %cond, @then, @else
+    then:
+        %3a = mload 0
+        mstore 100, %3a
+        jmp @join
+    else:
+        %3b = mload 0
+        mstore 100, %3b
+        jmp @join
+    join:
+        sink %1, %2
+    """
+
+    post = """
+    main:
+        %p = param
+        %2 = add %p, 2
+        %cond = iszero %p
+        %1 = add %p, 1
+        assert %1
+        jnz %cond, @then, @else
+    then:
+        %3a = mload 0
+        mstore 100, %3a
+        jmp @join
+    else:
+        %3b = mload 0
+        mstore 100, %3b
+        jmp @join
+    join:
+        sink %1, %2
+    """
+    
+    _check_pre_post(pre, post)

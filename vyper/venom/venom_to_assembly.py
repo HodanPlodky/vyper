@@ -477,24 +477,24 @@ class VenomCompiler:
             target_stack = list(reversed(self.stack_order.from_to_stack[(inst.parent, next_bb)]))
             # NOTE: in general the stack can contain multiple copies of
             # the same variable, however, before a jump that is not possible
-            import sys
             #print(target_stack, list(liv
             tmp  = False
             if target_stack != list(liv):
-                print(inst.parent, target_stack, list(liv), file=sys.stderr)
+                import sys
+                print(inst , target_stack, list(liv), file=sys.stderr)
                 tmp = True
             #for op in reversed(liv):
                 #if op not in target_stack:
                     #target_stack.insert(0, op)
 
-            target_stack = list(self.liveness.input_vars_from(inst.parent, next_bb))
-
-
-            if tmp:
-                print(stack, file=sys.stderr)
+            tmp_labs = ["9_condition", "19_if_exit", "25_if_exit", "inl0_internal 1 placeBid(address,uint256)_cleanup", "24_if_exit", "inl0_72_if_exit"]
+            #tmp_labs = ["9_condition","25_if_exit", "24_if_exit", "inl0_72_if_exit"]
+    
+            if inst.operands[0].name in tmp_labs:
+                target_stack = list(self.liveness.input_vars_from(inst.parent, next_bb))
+            #target_stack = list(self.liveness.input_vars_from(inst.parent, next_bb))
+            
             self._stack_reorder(assembly, stack, target_stack)
-            if tmp:
-                print(stack, assembly, file=sys.stderr)
 
         if inst.is_commutative:
             cost_no_swap = self._stack_reorder([], stack, operands, dry_run=True)

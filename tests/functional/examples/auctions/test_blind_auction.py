@@ -320,6 +320,7 @@ def test_blind_auction(env, auction_contract, keccak):
     _fakes[2] = True
     _secrets[2] = (1234567).to_bytes(32, byteorder="big")
     balance_before_reveal = env.get_balance(k2)
+    #breakpoint()
     auction_contract.reveal(3, _values, _fakes, _secrets, value=0, sender=k2)
     balance_after_reveal = env.get_balance(k2)
 
