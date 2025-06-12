@@ -115,6 +115,20 @@ class StackOrder:
                 worklist.append(inbb)
 
 
+    def get_transition(self, pred: IRBasicBlock, succ: IRBasicBlock) -> list[IROperand]:
+        transition = list(reversed(self.from_to_stack[(pred, succ)]))
+
+        # Ensure all live variables are included in the transition
+        live_vars = self.liveness.input_vars_from(pred, succ)
+        for var in live_vars:
+            if var not in transition:
+                #transition.insert(0, var)
+                transition.append(var)
+
+        return transition
+            
+
+
     def _handle_bb(self, bb: IRBasicBlock) -> list[IROperand]:
         stack: Stack = Stack()
         needed: list[IROperand] = []

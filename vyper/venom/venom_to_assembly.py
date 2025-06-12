@@ -154,6 +154,8 @@ class VenomCompiler:
         asm: list[Any] = []
         top_asm = asm
 
+        self.tmp_stacks: dict[IRBasicBlock, list] = dict()
+
         for ctx in self.ctxs:
             for fn in ctx.functions.values():
                 ac = IRAnalysesCache(fn)
@@ -204,6 +206,13 @@ class VenomCompiler:
 
         if no_optimize is False:
             optimize_assembly(top_asm)
+
+        import sys
+
+        for k, v in self.tmp_stacks.items():
+            print(k.label, file=sys.stderr)
+            for stack in v:
+                print("\t", stack, file=sys.stderr)
 
         return top_asm
 
@@ -329,6 +338,11 @@ class VenomCompiler:
     def _generate_evm_for_basicblock_r(
         self, asm: list, basicblock: IRBasicBlock, stack: StackModel
     ) -> None:
+        if len(self.cfg.cfg_in(basicblock)) > 1:
+            curr = self.tmp_stacks.get(basicblock, [])
+            curr.append(stack)
+            self.tmp_stacks[basicblock] = curr
+ 
         if basicblock in self.visited_basicblocks:
             return
         self.visited_basicblocks.add(basicblock)
@@ -473,26 +487,8 @@ class VenomCompiler:
             # guaranteed by cfg normalization+simplification
             assert len(self.cfg.cfg_in(next_bb)) > 1
 
-            liv = self.liveness.input_vars_from(inst.parent, next_bb)
-            target_stack = list(reversed(self.stack_order.from_to_stack[(inst.parent, next_bb)]))
-            # NOTE: in general the stack can contain multiple copies of
-            # the same variable, however, before a jump that is not possible
-            #print(target_stack, list(liv
-            tmp  = False
-            if target_stack != list(liv):
-                import sys
-                print(inst , target_stack, list(liv), file=sys.stderr)
-                tmp = True
-            #for op in reversed(liv):
-                #if op not in target_stack:
-                    #target_stack.insert(0, op)
-
-            tmp_labs = ["9_condition", "19_if_exit", "25_if_exit", "inl0_internal 1 placeBid(address,uint256)_cleanup", "24_if_exit", "inl0_72_if_exit"]
-            #tmp_labs = ["9_condition","25_if_exit", "24_if_exit", "inl0_72_if_exit"]
-    
-            if inst.operands[0].name in tmp_labs:
-                target_stack = list(self.liveness.input_vars_from(inst.parent, next_bb))
-            #target_stack = list(self.liveness.input_vars_from(inst.parent, next_bb))
+            #target_stack = list(reversed(self.stack_order.from_to_stack[(inst.parent, next_bb)]))
+            target_stack = self.stack_order.get_transition(inst.parent, next_bb)
             
             self._stack_reorder(assembly, stack, target_stack)
 
