@@ -81,7 +81,7 @@ class Stack:
 
 # this wont be part of the analysis framework
 class StackOrder:
-    from_to_stack: dict[tuple[IRBasicBlock, IRBasicBlock], list[IROperand]]
+    _from_to_stack: dict[tuple[IRBasicBlock, IRBasicBlock], list[IROperand]]
     bb_to_stack: dict[IRBasicBlock, list[IROperand]]
     liveness: LivenessAnalysis
     store_to_type: dict[IRInstruction, StoreType]
@@ -91,7 +91,7 @@ class StackOrder:
         self.function = function
         self.store_to_type = dict()
         self.bb_to_stack = dict()
-        self.from_to_stack = dict()
+        self._from_to_stack = dict()
         self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         self.liveness = self.analyses_cache.request_analysis(LivenessAnalysis)
 
@@ -116,7 +116,7 @@ class StackOrder:
 
 
     def get_transition(self, pred: IRBasicBlock, succ: IRBasicBlock) -> list[IROperand]:
-        transition = list(reversed(self.from_to_stack[(pred, succ)]))
+        transition = self._from_to_stack[(pred, succ)]
 
         # Ensure all live variables are included in the transition
         live_vars = self.liveness.input_vars_from(pred, succ)
@@ -125,7 +125,7 @@ class StackOrder:
                 #transition.insert(0, var)
                 transition.append(var)
 
-        return transition
+        return list(reversed(transition))
             
 
 
@@ -174,7 +174,7 @@ class StackOrder:
                 assert transition[pos] == phi_var
                 transition[pos] = var
             transition = added + transition
-            self.from_to_stack[(pred, bb)] = transition
+            self._from_to_stack[(pred, bb)] = transition
 
 
         self.bb_to_stack[bb] = needed
@@ -193,7 +193,7 @@ class StackOrder:
     def get_prefered_stack(self, origin: IRBasicBlock, succesors: list[IRBasicBlock]) -> list[IROperand]:
         for bb in succesors:
             self._handle_bb(bb)
-        bb_orders = [self.from_to_stack[(origin, bb)] for bb in succesors]
+        bb_orders = [self.get_transition(origin, bb) for bb in succesors]
 
         # reverse so it it is in the same order
         # as the operands for the easier handle
@@ -235,7 +235,7 @@ class StackOrder:
         if inst.is_bb_terminator:
             ops = [op for op in inst.operands if not isinstance(op, IRLabel)]
             out_bbs = self.cfg.cfg_out(bb)
-            orders = [self.from_to_stack.get((bb, out_bb), []) for out_bb in out_bbs]
+            orders = [self._from_to_stack.get((bb, out_bb), []) for out_bb in out_bbs]
             tmp = self._merge(orders)
             for op in tmp:
                 if op not in ops:
