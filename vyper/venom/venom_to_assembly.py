@@ -169,7 +169,7 @@ class VenomCompiler:
 
                 assert self.cfg.is_normalized(), "Non-normalized CFG!"
 
-                self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel())
+                self._generate_evm_for_basicblock_r(asm, fn.entry, StackModel(), None)
 
             # TODO make this property on IRFunction
             asm.extend(["_sym__ctor_exit", "JUMPDEST"])
@@ -340,7 +340,7 @@ class VenomCompiler:
     ) -> None:
         if len(self.cfg.cfg_in(basicblock)) > 1:
             curr = self.tmp_stacks.get(basicblock, [])
-            curr.append(stack)
+            curr.append(stack.copy())
             self.tmp_stacks[basicblock] = curr
  
         if basicblock in self.visited_basicblocks:
@@ -489,8 +489,9 @@ class VenomCompiler:
 
             #target_stack = list(reversed(self.stack_order.from_to_stack[(inst.parent, next_bb)]))
             target_stack = self.stack_order.get_transition(inst.parent, next_bb)
-            
+
             self._stack_reorder(assembly, stack, target_stack)
+
 
         if inst.is_commutative:
             cost_no_swap = self._stack_reorder([], stack, operands, dry_run=True)

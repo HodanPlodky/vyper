@@ -120,7 +120,7 @@ class StackOrder:
 
         # Ensure all live variables are included in the transition
         live_vars = self.liveness.input_vars_from(pred, succ)
-        for var in live_vars:
+        for var in reversed(live_vars):
             if var not in transition:
                 #transition.insert(0, var)
                 transition.append(var)
@@ -224,8 +224,8 @@ class StackOrder:
             stack._swap(op_position, output)
         elif store_type == StoreType.DUP:
             stack.data.append(output)
-            if op not in stack.data:
-                needed.append(op)
+            #if op not in stack.data:
+                #needed.append(op)
 
         return needed
     
