@@ -198,7 +198,7 @@ class StackOrder:
         # reverse so it it is in the same order
         # as the operands for the easier handle
         # in dft pass (same logic as normal inst)
-        return list(reversed(self._merge(bb_orders)))
+        return self._merge(bb_orders)
 
     def _handle_store(self, inst: IRInstruction, stack: Stack) -> list[IROperand]:
         needed = []
