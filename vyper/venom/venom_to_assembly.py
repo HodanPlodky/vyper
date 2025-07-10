@@ -22,7 +22,6 @@ from vyper.venom.basicblock import (
     IRVariable,
 )
 from vyper.venom.context import IRContext, IRFunction
-from vyper.venom.passes import NormalizationPass
 from vyper.venom.stack_model import StackModel
 from vyper.venom.analysis import StackOrder
 
@@ -160,7 +159,6 @@ class VenomCompiler:
             for fn in ctx.functions.values():
                 ac = IRAnalysesCache(fn)
 
-                NormalizationPass(ac, fn).run_pass()
                 self.liveness = ac.request_analysis(LivenessAnalysis)
                 self.dfg = ac.request_analysis(DFGAnalysis)
                 self.cfg = ac.request_analysis(CFGAnalysis)
@@ -206,13 +204,6 @@ class VenomCompiler:
 
         if no_optimize is False:
             optimize_assembly(top_asm)
-
-        import sys
-
-        for k, v in self.tmp_stacks.items():
-            print(k.label, file=sys.stderr)
-            for stack in v:
-                print("\t", stack, file=sys.stderr)
 
         return top_asm
 
@@ -338,6 +329,7 @@ class VenomCompiler:
     def _generate_evm_for_basicblock_r(
         self, asm: list, basicblock: IRBasicBlock, stack: StackModel
     ) -> None:
+        #print(basicblock.label)
         if len(self.cfg.cfg_in(basicblock)) > 1:
             curr = self.tmp_stacks.get(basicblock, [])
             curr.append(stack.copy())
@@ -493,6 +485,8 @@ class VenomCompiler:
             if target_stack != list(liv):
                 import sys
                 print(inst.parent.label, "->", next_bb.label, file=sys.stderr)
+                #breakpoint()
+                #self.stack_order.get_transition(inst.parent, next_bb)
                 print("\t", target_stack, liv, file=sys.stderr)
 
             self._stack_reorder(assembly, stack, target_stack)
@@ -532,7 +526,7 @@ class VenomCompiler:
             pass
         elif opcode == "param":
             pass
-        elif opcode == "store":
+        elif opcode == "assign":
             pass
         elif opcode == "dbname":
             pass

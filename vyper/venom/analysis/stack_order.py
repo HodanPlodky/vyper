@@ -18,11 +18,11 @@ from collections import deque, defaultdict
 
 def _max_same_prefix(stack_a: list[IROperand], stack_b: list[IROperand]) -> list[IROperand]:
     res = []
-    for a, b in zip(stack_a, stack_b):
+    for a, b in zip(reversed(stack_a), reversed(stack_b)):
         if a != b:
             break
         res.append(a)
-    return res
+    return list(reversed(res))
 
 
 class StoreType(Enum):
@@ -118,12 +118,15 @@ class StackOrder:
     def get_transition(self, pred: IRBasicBlock, succ: IRBasicBlock) -> list[IROperand]:
         transition = self._from_to_stack[(pred, succ)]
 
+        #print("transition", transition)
+
         # Ensure all live variables are included in the transition
         live_vars = self.liveness.input_vars_from(pred, succ)
         for var in reversed(live_vars):
             if var not in transition:
                 #transition.insert(0, var)
                 transition.append(var)
+                #print("append", var)
 
         return list(reversed(transition))
             
@@ -138,6 +141,10 @@ class StackOrder:
         phi_positions: dict[IRVariable, int] = dict()
 
         for inst in bb.instructions:
+            #if bb.label.name == "inl0_222_if_exit":
+                #print(inst)
+                #print(needed, stack)
+                #print()
             if inst.opcode == "store":
                 inst_needed = self._handle_store(inst, stack)
             elif inst.opcode == "phi":
@@ -194,7 +201,6 @@ class StackOrder:
         for bb in succesors:
             self._handle_bb(bb)
         bb_orders = [self.get_transition(origin, bb) for bb in succesors]
-
         # reverse so it it is in the same order
         # as the operands for the easier handle
         # in dft pass (same logic as normal inst)
@@ -224,8 +230,8 @@ class StackOrder:
             stack._swap(op_position, output)
         elif store_type == StoreType.DUP:
             stack.data.append(output)
-            #if op not in stack.data:
-                #needed.append(op)
+            if op not in stack.data and op not in needed:
+                needed.append(op)
 
         return needed
     

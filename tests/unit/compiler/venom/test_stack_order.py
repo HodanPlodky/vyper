@@ -386,3 +386,18 @@ def test_stack_order_entry_instruction():
     """
     
     _check_pre_post(pre, post)
+
+def test_stack_order_two_trees():
+    pre = """
+    main:
+        %1 = param
+        %2 = param
+        %cond = iszero %2
+        assert %cond
+        %3 = 3
+        jmp @after
+    after:
+        sink %3, %2, %1
+    """
+
+    _check_no_change(pre)
