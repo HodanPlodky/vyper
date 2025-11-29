@@ -283,7 +283,8 @@ def _get_memory_write_location(inst, var_base_pointers: dict) -> MemoryLocation:
         return MemoryLocation.from_operands(dst, size, var_base_pointers)
     elif opcode in ("delegatecall", "staticcall"):
         size, dst, _, _, _, _ = inst.operands
-        return MemoryLocation.from_operands(dst, size, var_base_pointers)
+        #return MemoryLocation.from_operands(dst, size, var_base_pointers)
+        return MemoryLocation.EMPTY
     elif opcode == "extcodecopy":
         size, _, dst, _ = inst.operands
         return MemoryLocation.from_operands(dst, size, var_base_pointers)
