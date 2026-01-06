@@ -160,7 +160,7 @@ def ir_node_to_venom(ir: IRnode, deploy_info: Optional[DeployInfo] = None) -> IR
         )
         bb.insert_instruction(inst)
         _immutables_region_alloca = inst
-        ctx.mem_allocator.set_position(Allocation(_immutables_region_alloca), 0)
+        ctx.mem_allocator.allocate_immutable(Allocation(_immutables_region_alloca))
         symbols["runtime_codesize"] = IRLiteral(deploy_info.runtime_codesize)
 
     _convert_ir_bb(fn, ir, symbols)
@@ -351,7 +351,7 @@ def _handle_internal_func(
         )
         bb.insert_instruction(inst)
         _immutables_region_alloca = inst
-        fn.ctx.mem_allocator.set_position(Allocation(inst), 0)
+        fn.ctx.mem_allocator.allocate_immutable(Allocation(inst))
 
     # return buffer
     if does_return_data:

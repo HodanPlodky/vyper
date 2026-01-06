@@ -26,6 +26,8 @@ class MemoryAllocator:
     # reserved positions: set[tuple[position, size]]
     reserved: set[tuple[int, int]]
 
+    immutables: dict[int, int]
+
     FN_START: ClassVar[int] = 0
 
     def __init__(self):
@@ -35,9 +37,21 @@ class MemoryAllocator:
         self.mems_used = dict()
         self.fn_eom = dict()
         self.allocated_fn = OrderedSet()
+        self.immutables = dict()
 
     def set_position(self, alloca: Allocation, position: int):
         self.allocated[alloca] = position
+
+    def allocate_immutable(self, alloca: Allocation) -> int:
+        assert len(alloca.inst.operands) >= 2
+        _id = alloca.inst.operands[1]
+        assert isinstance(_id, IRLiteral) 
+        if _id in self.immutables:
+            res = self.immutables[_id.value]
+        else:
+            res = 0 if len(self.immutables) == 0 else max(self.immutables.values())
+        self.set_position(alloca, res)
+        return res
 
     def allocate(self, alloca: Allocation) -> int:
         assert alloca not in self.allocated
