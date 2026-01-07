@@ -51,7 +51,7 @@ class MemoryAllocator:
             # can happen if this allocation
             # overlaps with allocations that don't
             # overlap each other
-            if resv_ptr < ptr:
+            if resv_ptr <= ptr:
                 ptr = resv_ptr + resv_size
                 continue
 
