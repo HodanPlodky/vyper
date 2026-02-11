@@ -1,6 +1,6 @@
 from vyper.exceptions import CompilerPanic
-from vyper.utils import all2
-from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis
+from vyper.utils import all2, OrderedSet
+from vyper.venom.analysis import CFGAnalysis, DFGAnalysis, LivenessAnalysis, DefinedMemoryVars
 from vyper.venom.basicblock import IRInstruction, IRLiteral, IRVariable
 from vyper.venom.function import IRFunction
 from vyper.venom.passes.base_pass import InstUpdater, IRPass
@@ -16,8 +16,9 @@ class Mem2Var(IRPass):
 
     def run_pass(self):
         self.mem_alloc = self.function.ctx.mem_allocator
-        self.analyses_cache.request_analysis(CFGAnalysis)
+        self.cfg = self.analyses_cache.request_analysis(CFGAnalysis)
         dfg = self.analyses_cache.request_analysis(DFGAnalysis)
+        self.def_mems = self.analyses_cache.request_analysis(DefinedMemoryVars)
         self.updater = InstUpdater(dfg)
         self.dfg = dfg
 
@@ -62,7 +63,7 @@ class Mem2Var(IRPass):
         assert isinstance(size_lit, IRLiteral)
         size = size_lit.value
 
-        self.updater.add_after(alloca_inst, "assign", [IRLiteral(0)], var=var)
+        self._stores_dominate_loads(alloca_inst, uses)
 
         for inst in uses.copy():
             if inst.opcode == "mstore":
@@ -81,6 +82,20 @@ class Mem2Var(IRPass):
                 if size <= 32:
                     self.updater.add_before(inst, "mstore", [var, alloca_inst.output])
                 inst.operands[1] = alloca_inst.output
+
+    def _stores_dominate_loads(self, inst: IRInstruction, uses: OrderedSet[IRInstruction]):
+        reads = [use for use in uses if use.opcode in ("mload", "return")]
+
+        for read in reads:
+            if read.opcode == "mload":
+                ptr = read.operands[0]
+            elif read.opcode == "return":
+                _, ptr = read.operands
+            else:
+                raise CompilerPanic(f"{inst}, {read}")
+            defined = self.def_mems.defined_at[read]
+            if ptr not in defined:
+                raise CompilerPanic(f"{inst}, {read}, {defined}")
 
     def _process_palloca_var(self, dfg: DFGAnalysis, palloca_inst: IRInstruction, var: IRVariable):
         """
