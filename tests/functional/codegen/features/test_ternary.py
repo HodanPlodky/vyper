@@ -293,4 +293,3 @@ def foo() -> Bytes[10]:
 
     c = get_contract(source)
     assert c.foo() == b"\x01\x02"
-
