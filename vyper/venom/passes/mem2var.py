@@ -141,6 +141,9 @@ class Mem2Var(IRPass):
         uses = self.dfg.get_uses(mem_src.output)
         output = mem_src.output
         for inst in uses.copy():
+            if inst.opcode in ("phi", "assign"):
+                self._fix_adds(inst)
+                continue
             if inst.opcode != "add":
                 continue
             other = [op for op in inst.operands if op != mem_src.output]
