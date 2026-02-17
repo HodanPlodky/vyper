@@ -162,6 +162,11 @@ class MemoryCopyElisionPass(IRPass):
                 if write_loc.is_fixed:
                     self.copies[write_loc] = inst
 
+                # it was not elided to some different
+                # copy
+                if inst.opcode == "mcopy":
+                    self._try_create_translate(inst)
+
             elif _volatile_memory(inst):
                 self.copies.clear()
                 self.loads[Effects.MEMORY].clear()
@@ -198,6 +203,18 @@ class MemoryCopyElisionPass(IRPass):
 
             for mem_loc in to_remove:
                 del self.copies[mem_loc]
+            
+            if write_loc.is_concrete:
+                self.total_translation.clear()
+            else:
+                to_remove = []
+                for dst, src in self.total_translation.items():
+                    if dst == write_loc.alloca or src == write_loc.alloca:
+                        to_remove.append(dst)
+
+                for item in to_remove:
+                    del self.total_translation[item]
+
 
         vars_to_remove = []
         for var, (mem_loc, _) in self.loads[eff].items():
@@ -211,7 +228,6 @@ class MemoryCopyElisionPass(IRPass):
         assert inst.opcode == "mcopy"
         read_loc = self.base_ptr.get_read_location(inst, addr_space.MEMORY)
         if read_loc not in self.copies:
-            self._try_create_translate(inst)
             return
 
         previous = self.copies[read_loc]
@@ -261,7 +277,7 @@ class MemoryCopyElisionPass(IRPass):
         assert inst.opcode == "mcopy"
 
         read_loc = self.base_ptr.get_read_location(inst, addr_space.MEMORY)
-        write_loc = self.base_ptr.get_read_location(inst, addr_space.MEMORY)
+        write_loc = self.base_ptr.get_write_location(inst, addr_space.MEMORY)
 
         if read_loc.is_concrete or write_loc.is_concrete:
             return
@@ -291,7 +307,7 @@ class MemoryCopyElisionPass(IRPass):
             return
         if read_loc.alloca not in self.total_translation:
             return
-        self._update_base_allocation
+        self._update_base_allocation(inst, read_loc)
 
     def _update_base_allocation(self, inst: IRInstruction, read_loc: MemoryLocation):
         if read_loc.alloca not in self.total_translation:
