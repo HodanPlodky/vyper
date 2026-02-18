@@ -884,9 +884,8 @@ def test_mcopy_chain_with_allocas():
         %a2 = alloca 64
         %a3 = alloca 64
         nop
-        %2 = gep 0, %a1
-        mcopy %a3, %2, 64
-        %1 = mload %a3
+        nop
+        %1 = mload %a1
         sink %1
     """
     _check_pre_post(pre, post)
@@ -1741,8 +1740,7 @@ def test_invoke_allocation_translation():
         %ret_buf = alloca 2, 64
         invoke @fn, %ret_buf
         nop
-        %1 = gep 0, %ret_buf
-        %res = mload %1
+        %res = mload %ret_buf
         sink %res
     """
 
