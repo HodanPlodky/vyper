@@ -322,9 +322,14 @@ class MemoryCopyElisionPass(IRPass):
         
         if read_loc.offset is None:
             return
+        
 
         new_base = self.total_translation[read_loc.alloca]
-        new_operand = self.updater.add_before(inst, "gep", [new_base.inst.output, IRLiteral(read_loc.offset)])
+
+        new_operand = new_base.inst.output
+        if read_loc.offset != 0:
+            new_operand = self.updater.add_before(inst, "gep", [new_base.inst.output, IRLiteral(read_loc.offset)])
+
         assert new_operand is not None
         update_read_location(inst, new_operand)
 
