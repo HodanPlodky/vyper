@@ -22,15 +22,17 @@ _STORES = {"mstore": Effects.MEMORY, "sstore": Effects.STORAGE, "tstore": Effect
 
 # Type alias for copy tracking: maps memory location to the copy instruction
 CopyMap = dict[MemoryLocation, IRInstruction]
+TranslateMap = dict[Allocation, Allocation]
 
 
 class MemoryCopyElisionPass(IRPass):
     base_ptr: BasePtrAnalysis
     copies: CopyMap
-    total_translation: dict[Allocation, Allocation]
+    total_translation: TranslateMap
     loads: dict[Effects, dict[IRVariable, tuple[MemoryLocation, IRInstruction]]]
     # For cross-BB analysis: maps BB -> copy state at end of BB
     bb_copies: dict[IRBasicBlock, CopyMap]
+    bb_translates: dict[IRBasicBlock, TranslateMap]
 
     def run_pass(self):
         self.base_ptr = self.analyses_cache.request_analysis(BasePtrAnalysis)
@@ -41,6 +43,7 @@ class MemoryCopyElisionPass(IRPass):
         self.loads = {Effects.MEMORY: dict(), Effects.STORAGE: dict(), Effects.TRANSIENT: dict()}
         self.bb_copies = {}
         self.total_translation = dict()
+        self.bb_translates = dict()
 
         # Use worklist algorithm for cross-BB copy propagation
         worklist = deque(self.cfg.dfs_pre_walk)
@@ -120,11 +123,44 @@ class MemoryCopyElisionPass(IRPass):
 
         return True
 
+    def _merge_translates(self, bb: IRBasicBlock) -> TranslateMap:
+        preds = list(self.cfg.cfg_in(bb))
+
+        if len(preds) == 0:
+            return TranslateMap()
+        
+        # Start with first predecessor's state
+        first_pred = preds[0]
+        if first_pred not in self.bb_copies:
+            return {}
+
+        result = self.bb_translates[first_pred].copy()
+
+        # Intersect with other predecessors
+        for pred in preds[1:]:
+            if pred not in self.bb_copies:
+                # If any predecessor hasn't been processed, be conservative
+                return {}
+            other = self.bb_translates[pred]
+
+            common_keys = result.keys() & other.keys()
+            new_result = {}
+            for key in common_keys:
+                # Keep if instructions are equivalent (same opcode and source location)
+                if result[key] == other[key]:
+                    new_result[key] = result[key]
+
+            result = new_result
+        
+        return result
+
+
+
     def _process_bb(self, bb: IRBasicBlock) -> bool:
         """Process a basic block, return True if copy state changed."""
         # Get incoming copy state from predecessors
         self.copies = self._merge_copies(bb)
-        self.total_translation.clear()
+        self.total_translation = self._merge_translates(bb)
 
         # Clear loads at BB boundary (loads are still per-BB only)
         for e in self.loads.values():
@@ -174,11 +210,18 @@ class MemoryCopyElisionPass(IRPass):
                 self.loads[Effects.MEMORY].clear()
 
         # Check if state changed
+        change = False
         old_copies = self.bb_copies.get(bb, None)
         if old_copies is None or old_copies != self.copies:
             self.bb_copies[bb] = self.copies.copy()
-            return True
-        return False
+            change = True
+
+        old_translates = self.bb_translates.get(bb, None)
+        if old_translates is None or old_translates != self.total_translation:
+            self.bb_translates[bb] = self.total_translation
+            change = True
+
+        return change
 
     def _invalidate(self, write_loc: MemoryLocation, eff: Effects):
         if not write_loc.is_fixed and Effects.MEMORY in eff:
@@ -296,11 +339,11 @@ class MemoryCopyElisionPass(IRPass):
         if read_loc.alloca.alloca_size != read_loc.size:
             return
 
-        write_uses = self.base_ptr.vars_in_allocations[write_loc.alloca]
-        for write_use in write_uses:
-            write_inst = self.dfg.get_producing_instruction(write_use)
-            assert write_inst is not None
-            if write_inst.parent != inst.parent:
+        read_uses = self.base_ptr.vars_in_allocations[read_loc.alloca]
+        for read_use in read_uses:
+            read_inst = self.dfg.get_producing_instruction(read_use)
+            assert read_inst is not None
+            if read_inst.parent != inst.parent:
                 return
         
         translates_to = read_loc.alloca
