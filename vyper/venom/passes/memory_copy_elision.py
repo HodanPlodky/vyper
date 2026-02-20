@@ -380,8 +380,9 @@ class MemoryCopyElisionPass(IRPass):
         new_operand = new_base.inst.output
         if read_loc.offset != 0:
             new_operand = self.updater.add_before(inst, "gep", [new_base.inst.output, IRLiteral(read_loc.offset)])
+            assert new_operand is not None
+            self.base_ptr.new_gep(new_operand, new_base, read_loc.offset)
 
-        assert new_operand is not None
         update_read_location(inst, new_operand)
 
     def _try_update_from_translates_write(self, inst: IRInstruction):
@@ -407,8 +408,9 @@ class MemoryCopyElisionPass(IRPass):
         new_operand = new_base.inst.output
         if write_loc.offset != 0:
             new_operand = self.updater.add_before(inst, "gep", [new_base.inst.output, IRLiteral(write_loc.offset)])
+            assert new_operand is not None
+            self.base_ptr.new_gep(new_operand, new_base, write_loc.offset)
 
-        assert new_operand is not None
         update_write_location(inst, new_operand)
 
 

@@ -1745,3 +1745,39 @@ def test_invoke_allocation_translation():
     """
 
     _check_pre_post(pre, post)
+
+def test_mcopy_translation_non_rewriteble():
+    pre = """
+    main:
+        %dst = alloca 1, 64
+        %ret_buf = alloca 2, 64
+        invoke @fn, %ret_buf
+        mcopy %dst, %ret_buf, 64
+        %2 = gep 32, %dst
+        mstore %2, 123
+        %a = mload %dst
+        %3 = gep 32, %dst
+        %b = mload %3
+        %res = add %a, %b
+        sink %res
+    """
+
+    post = """
+    main:
+        %dst = alloca 1, 64
+        %ret_buf = alloca 2, 64
+        invoke @fn, %ret_buf
+        nop
+        %2 = gep 32, %dst
+        %4 = gep 32, %ret_buf
+        mstore %4, 123
+        %a = mload %ret_buf
+        %3 = gep 32, %dst
+        %5 = gep 32, %ret_buf
+        %b = mload %5
+        %res = add %a, %b
+        sink %res
+    """
+
+    _check_pre_post(pre, post)
+
