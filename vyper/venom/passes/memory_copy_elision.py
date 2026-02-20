@@ -208,8 +208,7 @@ class MemoryCopyElisionPass(IRPass):
                     self._try_create_translate(inst)
 
             elif _volatile_memory(inst):
-                self.copies.clear()
-                self.loads[Effects.MEMORY].clear()
+                self._invalidate(self.base_ptr.get_write_location(inst, addr_space.MEMORY), Effects.MEMORY)
 
         # Check if state changed
         change = False
