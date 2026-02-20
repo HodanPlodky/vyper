@@ -1781,3 +1781,49 @@ def test_mcopy_translation_non_rewriteble():
 
     _check_pre_post(pre, post)
 
+
+def test_mcopy_translation_non_rewriteble_multiple_bb():
+    pre = """
+    main:
+        %cond = source
+        %dst = alloca 1, 64
+        %ret_buf = alloca 2, 64
+        invoke @fn, %ret_buf
+        mcopy %dst, %ret_buf, 64
+        jnz %cond, @then, @after
+    then:
+        %2 = gep 32, %dst
+        mstore %2, 123
+        jmp @after
+    after:
+        %a = mload %dst
+        %3 = gep 32, %dst
+        %b = mload %3
+        %res = add %a, %b
+        sink %res
+    """
+
+    post = """
+    main:
+        %cond = source
+        %dst = alloca 1, 64
+        %ret_buf = alloca 2, 64
+        invoke @fn, %ret_buf
+        nop
+        jnz %cond, @then, @after
+    then:
+        %2 = gep 32, %dst
+        %4 = gep 32, %ret_buf
+        mstore %4, 123
+        jmp @after
+    after:
+        %a = mload %ret_buf
+        %3 = gep 32, %dst
+        %5 = gep 32, %ret_buf
+        %b = mload %5
+        %res = add %a, %b
+        sink %res
+    """
+
+    _check_pre_post(pre, post)
+
