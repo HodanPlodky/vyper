@@ -2633,22 +2633,17 @@ def boo() -> uint256:
 
 def test_tmp(get_contract):
     code = """
-gen_var0: public(int128)
+gen_var0: int128
 gen_var1: int128
 counter: int128
-
-@internal
-def _increment():
-    self.counter |= self.gen_var1
 
 @external
 def returnzero() -> int128:
     self.gen_var0 = self.gen_var1
     for i: uint256 in range(10):
         self.gen_var1 = min(self.gen_var0, self.gen_var0)
-        self._increment()
+        self.counter |= self.gen_var1
     return self.gen_var1
-
     """
 
     c = get_contract(code)
