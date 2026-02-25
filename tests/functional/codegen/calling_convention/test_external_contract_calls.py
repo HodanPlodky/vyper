@@ -2640,7 +2640,7 @@ counter: int128
 @external
 def returnzero() -> int128:
     self.gen_var0 = self.gen_var1
-    for i: uint256 in range(10):
+    for i: uint256 in range(1):
         self.gen_var1 = min(self.gen_var0, self.gen_var0)
         self.counter |= self.gen_var1
     return self.gen_var1
