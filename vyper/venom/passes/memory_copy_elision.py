@@ -343,13 +343,10 @@ class MemoryCopyElisionPass(IRPass):
         if read_loc.alloca.alloca_size != read_loc.size:
             return
 
-        read_uses = self.base_ptr.vars_in_allocations[read_loc.alloca]
-        for read_use in read_uses:
-            read_inst = self.dfg.get_producing_instruction(read_use)
-            assert read_inst is not None
-            if read_inst.parent != inst.parent:
-                return
+        if write_loc.alloca.alloca_size != write_loc.size:
+            return
 
+        read_uses = self.base_ptr.vars_in_allocations[read_loc.alloca]
         temp_memory = len(read_uses) == 1
         
         translates_to = read_loc.alloca
