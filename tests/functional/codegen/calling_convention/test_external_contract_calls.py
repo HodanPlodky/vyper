@@ -2631,7 +2631,11 @@ def boo() -> uint256:
     assert c.bar() == [1, 2, 3, 4]
 
 
-def test_tmp(get_contract):
+def test_stack_order_liveness_dependence_error(get_contract):
+    """
+    This cause error with venom_to_assembly
+    more about it: https://github.com/vyperlang/vyper/pull/4859
+    """
     code = """
 gen_var0: int128
 gen_var1: int128
