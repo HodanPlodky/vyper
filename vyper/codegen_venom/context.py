@@ -287,7 +287,7 @@ class VenomCodegenContext:
 
     def is_word_type(self, typ: VyperType) -> bool:
         """Check if type fits in one stack slot (32 bytes)."""
-        return typ.memory_bytes_required == 32
+        return typ.memory_bytes_required == 32 and typ._is_prim_word
 
     def pass_via_stack(self, func_t: ContractFunctionT) -> dict[str, bool]:
         """Determine which args pass via stack vs memory.
