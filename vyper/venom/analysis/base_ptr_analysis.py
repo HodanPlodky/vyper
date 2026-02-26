@@ -196,11 +196,16 @@ class BasePtrAnalysis(IRAnalysis):
             return MemoryLocation.UNDEFINED
         if inst.opcode == "invoke":
             return MemoryLocation.UNDEFINED
+        if inst.opcode == "ret":
+            return self._get_memory_read_location_ret(inst)
 
         if inst.get_read_effects() & effects.MEMORY == effects.EMPTY:
             return MemoryLocation.EMPTY
 
         return self.segment_from_ops(memory_read_ops(inst))
+    
+    def _get_memory_read_location_ret(self, inst) -> MemoryLocation:
+        return MemoryLocation.UNDEFINED
 
     # REVIEW: this should be refactored too, like get_storage_read_location
     # and get_storage_write_location
