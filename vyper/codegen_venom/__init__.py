@@ -13,11 +13,6 @@ from __future__ import annotations
 
 from typing import Optional
 
-from vyper.codegen_venom.calling_convention import (  # noqa: F401
-    is_word_type,
-    pass_via_stack,
-    returns_stack_count,
-)
 from vyper.codegen_venom.module import generate_deploy_venom, generate_runtime_venom
 from vyper.compiler.settings import Settings
 from vyper.semantics.types.module import ModuleT
@@ -25,19 +20,6 @@ from vyper.venom import run_passes_on
 from vyper.venom.context import IRContext
 
 MAIN_ENTRY_LABEL = "__main_entry"
-
-
-# Backwards-compatible aliases used by compiler/output.py
-def _is_word_type(typ) -> bool:
-    return is_word_type(typ)
-
-
-def _returns_word(func_t) -> bool:
-    return returns_stack_count(func_t) > 0
-
-
-def _pass_via_stack(func_t) -> dict[str, bool]:
-    return pass_via_stack(func_t)
 
 
 def _finalize_venom_ctx(ctx: IRContext, settings: Settings) -> IRContext:
