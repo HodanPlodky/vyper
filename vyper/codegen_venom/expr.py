@@ -1489,7 +1489,7 @@ class Expr:
             )
 
         returns_count = returns_stack_count(func_t)
-        _pass_via_stack = pass_via_stack(func_t)
+        pass_via_stack_dict = pass_via_stack(func_t)
 
         # Generate function label
         # Format: "internal {function_id} {name}({arg_types})_runtime"
@@ -1538,7 +1538,7 @@ class Expr:
             arg_t = func_t.arguments[i]
             arg_op = self.ctx.unwrap(arg_val)
 
-            if _pass_via_stack[arg_t.name]:
+            if pass_via_stack_dict[arg_t.name]:
                 # Stack-passed arg: use value directly
                 # For struct/tuple types that fit in one word, arg_val is a memory
                 # pointer (from unwrap), so we need to load the actual value

@@ -1313,7 +1313,7 @@ def _generate_internal_function(
         builder.ctx.mem_allocator.add_global(imm_alloc)
 
     # Set up return handling
-    _pass_via_stack = pass_via_stack(func_t)
+    pass_via_stack_dict = pass_via_stack(func_t)
     returns_count = returns_stack_count(func_t)
     has_memory_return_buffer = func_t.return_type is not None and returns_count == 0
 
@@ -1328,7 +1328,7 @@ def _generate_internal_function(
 
     # Handle function arguments
     for arg in func_t.arguments:
-        if _pass_via_stack[arg.name]:
+        if pass_via_stack_dict[arg.name]:
             # Stack-passed: receive value, allocate memory, store
             val = builder.param()
             var = codegen_ctx.new_variable(arg.name, arg.typ, mutable=True)

@@ -268,9 +268,9 @@ def build_metadata_output(compiler_data: CompilerData) -> dict:
         ret["function_id"] = func_t._function_id
 
         if func_t.is_internal and compiler_data.settings.experimental_codegen:
-            _pass_via_stack = pass_via_stack(func_t)
+            pass_via_stack_dict = pass_via_stack(func_t)
             pass_via_stack_list = [
-                arg for (arg, is_stack_arg) in _pass_via_stack.items() if is_stack_arg
+                arg for (arg, is_stack_arg) in pass_via_stack_dict.items() if is_stack_arg
             ]
             ret["venom_via_stack"] = pass_via_stack_list
             ret["venom_return_via_stack"] = returns_stack_count(func_t) > 0
