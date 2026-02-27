@@ -13,6 +13,11 @@ from __future__ import annotations
 
 from typing import Optional
 
+from vyper.codegen_venom.calling_convention import (  # noqa: F401
+    is_word_type,
+    pass_via_stack,
+    returns_stack_count,
+)
 from vyper.codegen_venom.module import generate_deploy_venom, generate_runtime_venom
 from vyper.compiler.settings import Settings
 from vyper.semantics.types.module import ModuleT
@@ -21,41 +26,18 @@ from vyper.venom.context import IRContext
 
 MAIN_ENTRY_LABEL = "__main_entry"
 
-# Internal calling convention constants
-MAX_STACK_ARGS = 6
 
-
+# Backwards-compatible aliases used by compiler/output.py
 def _is_word_type(typ) -> bool:
-    """Check if type fits in one stack slot (32 bytes)."""
-    return typ.memory_bytes_required == 32
+    return is_word_type(typ)
 
 
 def _returns_word(func_t) -> bool:
-    """Check if function returns a single word type."""
-    return_t = func_t.return_type
-    return return_t is not None and _is_word_type(return_t)
+    return returns_stack_count(func_t) > 0
 
 
 def _pass_via_stack(func_t) -> dict[str, bool]:
-    """Determine which args pass via stack vs memory.
-
-    Returns dict mapping arg name -> True if stack, False if memory.
-    Word types pass via stack up to MAX_STACK_ARGS.
-    """
-    ret = {}
-    stack_items = 0
-
-    if _returns_word(func_t):
-        stack_items += 1
-
-    for arg in func_t.arguments:
-        if not _is_word_type(arg.typ) or stack_items > MAX_STACK_ARGS:
-            ret[arg.name] = False
-        else:
-            ret[arg.name] = True
-            stack_items += 1
-
-    return ret
+    return pass_via_stack(func_t)
 
 
 def _finalize_venom_ctx(ctx: IRContext, settings: Settings) -> IRContext:
