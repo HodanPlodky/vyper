@@ -923,6 +923,7 @@ def foo(x: uint256[2500]) -> uint256:
         # success flag from identity precompile.
         c.foo(array, gas=gas_used)
 
+
 def test_return_list_size_one(get_contract):
     code = """
 @external
@@ -938,4 +939,4 @@ def _f() -> uint256[1]:
 
     c = get_contract(code)
     output = c.gen_func_1()
-    assert output == [42] 
+    assert output == [42]

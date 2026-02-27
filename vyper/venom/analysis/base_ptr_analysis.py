@@ -201,7 +201,7 @@ class BasePtrAnalysis(IRAnalysis):
             return MemoryLocation.EMPTY
 
         return self.segment_from_ops(memory_read_ops(inst))
-    
+
     # REVIEW: this should be refactored too, like get_storage_read_location
     # and get_storage_write_location
     def _get_storage_write_location(self, inst, addr_space: AddrSpace) -> MemoryLocation:
