@@ -188,14 +188,6 @@ class MemLiveness:
                         # passed to invoke as a stack parameter.
                         live.add(ptr.base_alloca)
 
-            # this is necessary for cases when the
-            # internal function returns a pointer
-            if inst.opcode == "ret":
-                for op in inst.operands:
-                    ptrs = self._find_base_ptrs(op)
-                    for ptr in ptrs:
-                        live.add(ptr.base_alloca)
-
             self.liveat[inst] = live.copy()
 
             for write_ptr in write_ptrs:
