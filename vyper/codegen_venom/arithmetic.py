@@ -175,12 +175,8 @@ def safe_mod(
     is_signed = typ.is_signed
 
     with b.error_context("safemod"):
-        # Clamp divisor > 0
-        if is_signed:
-            y_gt_zero = b.sgt(y, IRLiteral(0))
-        else:
-            y_gt_zero = b.gt(y, IRLiteral(0))
-        b.assert_(y_gt_zero)
+        not_zero = b.gt(y, IRLiteral(0))
+        b.assert_(not_zero)
 
         MOD = b.smod if is_signed else b.mod
         return MOD(x, y)
