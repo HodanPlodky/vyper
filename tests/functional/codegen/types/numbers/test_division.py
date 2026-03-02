@@ -53,6 +53,7 @@ def f(arg0: int128) -> int128:
 
     assert c.f(-1) == 1
 
+
 def test_signed_negative_decimal(get_contract):
     code = """
 @external
