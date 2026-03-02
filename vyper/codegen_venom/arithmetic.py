@@ -114,13 +114,14 @@ def safe_div(b: VenomBuilder, x: IROperand, y: IROperand, typ: DecimalT) -> IROp
     # Multiply numerator by divisor first
     x_scaled = b.mul(x, IRLiteral(typ.divisor))
 
-    # Clamp divisor > 0 for unsigned, or use sgt for signed
-    if typ.is_signed:
-        y_gt_zero = b.sgt(y, IRLiteral(0))
-    else:
-        y_gt_zero = b.gt(y, IRLiteral(0))
+    # check if divisor != zero
+    # even if the number is signed you can
+    # use gt since for every number in two's complement
+    # which is not zero is greater then 0
+    # if you read it as not signed
+    not_zero = b.gt(y, IRLiteral(0))
     with b.error_context("safediv"):
-        b.assert_(y_gt_zero)
+        b.assert_(not_zero)
 
     DIV = b.sdiv if typ.is_signed else b.div
     res = DIV(x_scaled, y)
