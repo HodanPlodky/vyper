@@ -138,7 +138,7 @@ def safe_floordiv(b: VenomBuilder, x: IROperand, y: IROperand, typ: IntegerT) ->
 
     # Clamp divisor > 0
     if is_signed:
-        y_gt_zero = b.sgt(y, IRLiteral(0))
+        y_gt_zero = b.iszero(b.eq(y, IRLiteral(0)))
     else:
         y_gt_zero = b.gt(y, IRLiteral(0))
     with b.error_context("safediv"):

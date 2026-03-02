@@ -104,3 +104,15 @@ def bar() -> uint256:
     assert c.foo1() == 2
     assert c.foo2() == 1
     assert c.foo3() == 2
+
+def test_tmp(get_contract):
+    code = """
+@external
+@pure
+def f(arg0: int128) -> int128:
+    return arg0 // arg0
+    """
+
+    c = get_contract(code)
+
+    assert c.f(-1) == 1
