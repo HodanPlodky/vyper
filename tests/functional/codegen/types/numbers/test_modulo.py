@@ -59,6 +59,7 @@ def bar(a: int128) -> bool:
     assert c.foo() == (1, 1, -1, -1)
     assert c.bar(-5) is True
 
+
 def test_signed_negative(get_contract):
     code = """
 @external
