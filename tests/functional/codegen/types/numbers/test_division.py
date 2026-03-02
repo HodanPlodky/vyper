@@ -39,3 +39,15 @@ def foo(a: decimal) -> decimal:
 @pytest.mark.parametrize("code", BAD_CODE)
 def test_divide_by_zero(code, assert_compile_failed, get_contract):
     assert_compile_failed(lambda: get_contract(code), ZeroDivisionException)
+
+def test_signed_negative(get_contract):
+    code = """
+@external
+@pure
+def f(arg0: int128) -> int128:
+    return arg0 // arg0
+    """
+
+    c = get_contract(code)
+
+    assert c.f(-1) == 1
