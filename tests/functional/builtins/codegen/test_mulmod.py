@@ -104,4 +104,3 @@ def bar() -> uint256:
     assert c.foo1() == 2
     assert c.foo2() == 1
     assert c.foo3() == 2
-
