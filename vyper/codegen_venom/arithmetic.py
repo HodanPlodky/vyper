@@ -136,13 +136,14 @@ def safe_floordiv(b: VenomBuilder, x: IROperand, y: IROperand, typ: IntegerT) ->
 
     is_signed = typ.is_signed
 
-    # Clamp divisor > 0
-    if is_signed:
-        y_gt_zero = b.iszero(b.eq(y, IRLiteral(0)))
-    else:
-        y_gt_zero = b.gt(y, IRLiteral(0))
+    # check if divisor != zero
+    # even if the number is signed you can
+    # use gt since for every number in two's complement
+    # which is not zero is greater then 0
+    # if you read it as not signed
+    not_zero = b.gt(y, IRLiteral(0))
     with b.error_context("safediv"):
-        b.assert_(y_gt_zero)
+        b.assert_(not_zero)
 
     DIV = b.sdiv if is_signed else b.div
     res: IROperand = DIV(x, y)
