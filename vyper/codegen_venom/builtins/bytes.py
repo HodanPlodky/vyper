@@ -280,7 +280,7 @@ def lower_extract32(node: vy_ast.Call, ctx: VenomCodegenContext) -> IROperand:
 
     # Bounds check: start + 32 <= length
 
-    b.assert_(b.and_(b.iszero(b.slt(start, IRLiteral(0))), b.iszero(b.sgt(start, b.sub(src_len, IRLiteral(32))))))
+    b.assert_(b.and_(b.iszero(b.slt(start, IRLiteral(0))), b.slt(start, b.sub(src_len, IRLiteral(31)))))
     # Load 32 bytes at offset
     load_ptr = b.add(src_data, start)
     result = b.mload(load_ptr)
