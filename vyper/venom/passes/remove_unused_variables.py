@@ -9,7 +9,7 @@ from vyper.venom.analysis.mem_alias import (
     can_create_mem_alias,
     mem_alias_type_factory,
 )
-from vyper.venom.analysis.mem_ssa import MemSSA, StorageSSA, TransientSSA
+from vyper.venom.analysis.mem_ssa import MemSSA, StorageSSA, TransientSSA, mem_ssa_type_factory
 from vyper.venom.basicblock import IRInstruction
 from vyper.venom.effects import EMPTY, FMP
 from vyper.venom.passes.base_pass import IRPass
@@ -55,12 +55,9 @@ class RemoveUnusedVariablesPass(IRPass):
         self.analyses_cache.invalidate_analysis(StorageAliasAnalysis)
         self.analyses_cache.invalidate_analysis(TransientAliasAnalysis)
         self.analyses_cache.invalidate_analysis(LoadAnalysis)
-        self.analyses_cache.invalidate_analysis(MemSSA)
-        self.analyses_cache.invalidate_analysis(StorageSSA)
-        self.analyses_cache.invalidate_analysis(TransientSSA)
         self.analyses_cache.invalidate_analysis(LivenessAnalysis)
         for space in self.invalidate_alias:
-            alias_analysis = mem_alias_type_factory(space)
+            alias_analysis = mem_ssa_type_factory(space)
             self.analyses_cache.invalidate_analysis(alias_analysis)
 
     def _process_instruction(self, inst) -> bool:
